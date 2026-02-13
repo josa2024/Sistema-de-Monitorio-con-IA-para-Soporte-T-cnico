@@ -1,0 +1,45 @@
+# IDEs y Editores
+.idea/
+.vscode/
+*.swp
+*~
+
+# Archivos del Sistema
+.DS_Store
+Thumbs.db
+
+# --- Backend (Python/FastAPI) ---
+backend/.venv/
+backend/.env
+**/__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+alembic/versions/*.pyc
+
+# --- Frontend (Node.js) ---
+frontend/node_modules/
+frontend/.env
+frontend/dist/
+frontend/build/
+*.log
+
+# Docker
+.docker/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.pytest_cache/
+
+# Variables de entorno (¡MUY IMPORTANTE NO SUBIR ESTO!)
+.env
+
+# IDEs
+.vscode/
+.idea/
+
+# Archivos subidos por usuarios (Licencias, etc)
+uploads/

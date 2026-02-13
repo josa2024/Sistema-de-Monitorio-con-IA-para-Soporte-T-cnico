@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: innotrev_db
+    restart: always
+    environment:
+      - POSTGRES_USER=innotrev_user
+      - POSTGRES_PASSWORD=innotrev_password
+      - POSTGRES_DB=innotrev_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - innotrev-net
+
+  backend:
+    container_name: innotrev_backend
+    build: ./backend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://innotrev_user:innotrev_password@db:5432/innotrev_db
+    depends_on:
+      - db
+    networks:
+      - innotrev-net
+
+  frontend:
+    container_name: innotrev_frontend
+    build: ./frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - innotrev-net
+
+volumes:
+  postgres_data:
+
+networks:
+  innotrev-net:
+    driver: bridge
