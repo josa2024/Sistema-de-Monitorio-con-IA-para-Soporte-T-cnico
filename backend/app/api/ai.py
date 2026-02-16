@@ -1,36 +1,28 @@
-from fastapi import APIRouter, Depends
-from app.api import deps
-from app.schemas.ai import ChatRequest, ChatResponse, AIStats
-from app.models.user_models import User
+from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from app.services.ai_service import ai_service
+# from app.api import deps  # <--- Seguridad (La comentamos para probar hoy)
 
 router = APIRouter()
 
-@router.post("/chat", response_model=ChatResponse)
-async def chat_with_assistant(
-    request: ChatRequest,
-    current_user: User = Depends(deps.get_current_user)
-) -> ChatResponse:
-    """
-    Chat con el asistente virtual de soporte técnico.
-    """
-    response_text = await ai_service.chat(
-        message=request.message, 
-        user_context={"user_id": current_user.id, "email": current_user.email}
-    )
-    
-    return ChatResponse(
-        response=response_text,
-        suggested_actions=["Ver manual", "Crear ticket de soporte"]
-    )
+# Definimos qué esperamos recibir del Frontend (un mensaje de texto)
+class ChatRequest(BaseModel):
+    message: str
 
-@router.get("/stats", response_model=AIStats)
-async def get_ai_failure_stats(
-    current_user: User = Depends(deps.get_current_active_admin)
-) -> AIStats:
+@router.post("/chat")
+async def chat_endpoint(request: ChatRequest): 
+    # NOTA: Para activar seguridad después, agregar arriba:
+    # ... current_user = Depends(deps.get_current_user)):
     """
-    Obtiene estadísticas de fallos comunes analizados por la IA.
-    Solo accesible para administradores.
+    Endpoint público para probar el Chatbot IA.
     """
-    stats = await ai_service.get_stats()
-    return stats
+    try:
+        # 1. Llamamos a tu cerebro (ai_service)
+        respuesta_texto = await ai_service.chat(request.message)
+        
+        # 2. Devolvemos la respuesta en formato JSON
+        return {"response": respuesta_texto}
+        
+    except Exception as e:
+        print(f"Error en el chat: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando la IA")
