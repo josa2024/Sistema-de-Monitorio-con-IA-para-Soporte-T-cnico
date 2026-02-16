@@ -7,6 +7,8 @@ Este es el backend para el sistema Innotrev, construido con FastAPI. Incluye ges
 1.  **Instalar dependencias:**
     ```bash
     pip install -r requirements.txt
+    # Parche de compatibilidad para passlib:
+    pip install "bcrypt==3.2.2"
     ```
 
 2.  **Configurar la base de datos:**
