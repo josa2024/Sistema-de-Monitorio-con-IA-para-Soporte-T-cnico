@@ -1,41 +1,52 @@
 import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Chatbot from './components/Chatbot';
-import './index.css'; // Asegura que Tailwind cargue
+import Login from './components/Login';
+import './index.css';
+
+// Componente para proteger rutas (si no hay token, te manda al login)
+const PrivateRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  return token ? children : <Navigate to="/" />;
+};
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
-      
-      {/* Barra de Navegación (Simulada) */}
-      <nav className="bg-white shadow-sm py-4 px-8 flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-blue-900">INNOTREV</h1>
-        <div className="space-x-6 text-gray-600">
-          <a href="#" className="hover:text-blue-600">Inicio</a>
-          <a href="#" className="text-blue-600 font-semibold">Soporte</a>
-          <a href="#" className="hover:text-blue-600">Mis Tickets</a>
-        </div>
-      </nav>
-
-      {/* Contenido Principal */}
-      <main className="flex-1 container mx-auto px-4 py-12 flex flex-col items-center justify-center">
+    <BrowserRouter>
+      <Routes>
+        {/* Ruta Pública: Login */}
+        <Route path="/" element={<Login />} />
         
-        <div className="text-center mb-10">
-          <h2 className="text-4xl font-bold text-gray-800 mb-4">¿En qué podemos ayudarte?</h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Nuestro sistema de IA puede resolver la mayoría de los problemas comunes de hardware y software al instante.
-            <br/>Si no lo logramos, te conectaremos con un técnico humano.
-          </p>
-        </div>
+        {/* Ruta Privada: Dashboard con Chatbot */}
+        <Route path="/dashboard" element={
+          <PrivateRoute>
+            <div className="min-h-screen bg-slate-50 flex flex-col">
+              {/* Barra Superior */}
+              <nav className="bg-white shadow p-4 flex justify-between items-center px-8">
+                <h1 className="text-xl font-bold text-blue-900">INNOTREV Support AI</h1>
+                <button 
+                  onClick={() => { localStorage.clear(); window.location.href = '/'; }}
+                  className="text-red-500 font-medium hover:underline"
+                >
+                  Cerrar Sesión
+                </button>
+              </nav>
 
-        {/* AQUÍ VA TU CHATBOT CENTRADO */}
-        <Chatbot />
-
-        <div className="mt-12 text-gray-400 text-sm">
-          ¿Prefieres hablar con un humano? <a href="#" className="text-blue-500 underline">Saltar IA y crear Ticket</a>
-        </div>
-
-      </main>
-    </div>
+              {/* Contenido Principal */}
+              <main className="flex-1 p-8 flex flex-col items-center">
+                <div className="mb-8 text-center">
+                  <h2 className="text-3xl font-bold text-gray-800">Hola, ¿cómo podemos ayudarte hoy?</h2>
+                  <p className="text-gray-500">Nuestro asistente virtual está listo para resolver tus dudas.</p>
+                </div>
+                
+                {/* Aquí mostramos tu Chatbot en grande */}
+                <Chatbot />
+              </main>
+            </div>
+          </PrivateRoute>
+        } />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

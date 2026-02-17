@@ -22,8 +22,13 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    # --- AQUÍ ESTABA EL FALTANTE ---
     environment:
       - DATABASE_URL=postgresql://innotrev_user:innotrev_password@db:5432/innotrev_db
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # -------------------------------
     depends_on:
       - db
     networks:

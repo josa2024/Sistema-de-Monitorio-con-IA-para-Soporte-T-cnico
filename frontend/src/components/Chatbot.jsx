@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 
 const Chatbot = () => {
-  // Ya no necesitamos isOpen porque siempre estará visible
   const [messages, setMessages] = useState([
-    { role: 'bot', text: '¡Hola! Soy la IA de Innotrev. Antes de agendar una cita, cuéntame tu problema. Quizás pueda solucionarlo ahora mismo.' }
+    { role: 'bot', text: '¡Hola! Soy la IA de Innotrev. Cuéntame tu problema.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [priority, setPriority] = useState(null); // <--- NUEVO ESTADO
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -15,6 +15,7 @@ const Chatbot = () => {
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
+    setPriority(null); // Limpiamos prioridad anterior
 
     try {
       const token = localStorage.getItem('token') || ''; 
@@ -30,19 +31,23 @@ const Chatbot = () => {
       if (!response.ok) throw new Error('Error en el servidor');
       const data = await response.json();
       
+      // NUEVO: Guardamos la prioridad
+      if (data.priority) {
+        setPriority(data.priority);
+      }
+      
       const botMsg = { role: 'bot', text: data.response };
       setMessages((prev) => [...prev, botMsg]);
 
     } catch (error) {
       console.error(error);
-      setMessages((prev) => [...prev, { role: 'bot', text: 'Error de conexión. Por favor intenta más tarde.' }]);
+      setMessages((prev) => [...prev, { role: 'bot', text: 'Error de conexión.' }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    // CAMBIO CLAVE: Quitamos 'fixed' y usamos un contenedor centrado
     <div className="w-full max-w-3xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden flex flex-col h-[600px]">
       
       {/* Encabezado */}
@@ -55,6 +60,21 @@ const Chatbot = () => {
           <p className="text-blue-200 text-sm">Soporte técnico automatizado nivel 1</p>
         </div>
       </div>
+
+      {/* --- AQUÍ ESTÁ LA ALERTA VISUAL (NUEVO) --- */}
+      {priority === 'ALTA' && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mx-4 mt-4 rounded shadow-sm animate-pulse">
+          <p className="font-bold">⚠️ PRIORIDAD CRÍTICA DETECTADA</p>
+          <p className="text-sm">Se ha notificado a un ingeniero senior inmediatamente.</p>
+        </div>
+      )}
+      {priority === 'MEDIA' && (
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mx-4 mt-4 rounded shadow-sm">
+          <p className="font-bold">⚠️ Atención Requerida</p>
+          <p className="text-sm">Un técnico revisará tu caso en breve.</p>
+        </div>
+      )}
+      {/* ------------------------------------------ */}
 
       {/* Área de Mensajes */}
       <div className="flex-1 p-6 overflow-y-auto bg-slate-50 space-y-4">
