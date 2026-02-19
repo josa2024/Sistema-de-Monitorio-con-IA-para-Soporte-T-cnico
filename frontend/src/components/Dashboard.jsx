@@ -1,26 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, Server, Search, Plus } from 'lucide-react';
 // IMPORTAMOS LA LIBRERÍA DE GRÁFICAS
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const Dashboard = () => {
   // Datos de la tabla
-  const equipmentList = [
-    { id: 'INV-001', sn: 'SN-98234-A', model: 'Innotrev Server Pro', client: 'Empresa Alpha S.A.', status: 'Instalado', statusColor: 'bg-emerald-100 text-emerald-700' },
-    { id: 'INV-002', sn: 'SN-98235-B', model: 'Gateway Router X1', client: 'Hospital General', status: 'En Tránsito', statusColor: 'bg-amber-100 text-amber-700' },
-    { id: 'INV-003', sn: 'SN-98236-C', model: 'Innotrev Workstation', client: 'Despacho Legal XYZ', status: 'Falla Reportada', statusColor: 'bg-red-100 text-red-700' },
-    { id: 'INV-004', sn: 'SN-98237-D', model: 'Innotrev Server Pro', client: 'Colegio Nacional', status: 'Instalado', statusColor: 'bg-emerald-100 text-emerald-700' },
-    { id: 'INV-005', sn: 'SN-98238-E', model: 'Termo-Sensor Industrial', client: 'Planta de Ensamblaje', status: 'Mantenimiento', statusColor: 'bg-blue-100 text-blue-700' },
-  ];
+  const [equipmentList, setEquipmentList] = useState([]);
+  const [chartData, setChartData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // NUEVO: Datos para la gráfica (Fallas detectadas por la IA)
-  const chartData = [
-    { name: 'Server Pro', fallas: 12 },
-    { name: 'Router X1', fallas: 19 },
-    { name: 'Workstation', fallas: 8 },
-    { name: 'Termo-Sensor', fallas: 25 },
-    { name: 'Switch Hub', fallas: 4 },
-  ];
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem('token') || ''; 
+        
+        // ⚠️ ATENCIÓN AQUÍ: Esta es la ruta a tu backend. 
+        // Necesitaremos asegurarnos de que esta ruta exista en tu FastAPI.
+        const response = await fetch('http://localhost:8000/api/v1/equipos', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Asumiendo que tu backend devuelve la lista de equipos
+          setEquipmentList(data.equipos || []);
+          // Y los datos para la gráfica
+          setChartData(data.estadisticas || []);
+        } else {
+          console.error("Error al traer los datos del servidor");
+        }
+      } catch (error) {
+        console.error("Error de conexión:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  
 
   return (
     <div className="space-y-6">
