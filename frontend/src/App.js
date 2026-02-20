@@ -13,6 +13,7 @@ import {
 import Login from './components/Login';
 import Chatbot from './components/Chatbot';
 import Dashboard from './components/Dashboard';
+import ClientPortal from './components/ClientPortal';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
@@ -46,6 +47,10 @@ function App() {
           <NavItem icon={<Package size={20} />} label="Inventario y Ventas" isActive={activeTab === 'inventario'} onClick={() => setActiveTab('inventario')} />
           <NavItem icon={<Key size={20} />} label="Garantías y Licencias" isActive={activeTab === 'licencias'} onClick={() => setActiveTab('licencias')} />
           
+          <div className="mt-4 mb-2">
+            <NavItem icon={<UserCircle size={20} />} label="VISTA CLIENTE (Demo)" isActive={activeTab === 'cliente'} onClick={() => setActiveTab('cliente')} />
+          </div>
+
           {/* Separador */}
           <div className="pt-4 pb-2 px-3">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Inteligencia Artificial</p>
@@ -103,6 +108,11 @@ function App() {
 
         {/* Área de Trabajo (Vistas dinámicas) */}
         <main className="flex-1 p-6 overflow-auto">
+          {activeTab === 'cliente' && (
+            <div className="absolute inset-0 z-50 bg-slate-50 overflow-auto">
+              <ClientPortal />
+            </div>
+          )}
           {activeTab === 'ia' && (
             <div className="h-full flex flex-col max-w-5xl mx-auto">
               <div className="mb-6">
@@ -112,7 +122,7 @@ function App() {
               
               {/* Aquí inyectamos tu Chatbot */}
               <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <Chatbot />
+                <Chatbot mode="admin" />
               </div>
             </div>
           )}
