@@ -37,7 +37,7 @@ const Chatbot = ({ mode = 'admin' }) => {
 
     try {
       const token = localStorage.getItem('token') || ''; 
-      const response = await fetch('http://localhost:8000/api/v1/ai/chat', {
+      const response = await fetch('http://127.0.0.1:8000/api/v1/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -68,7 +68,6 @@ const Chatbot = ({ mode = 'admin' }) => {
     }
   };
 
-  // FUNCIÓN PARA CREAR EL TICKET AUTOMÁTICAMENTE
   const handleCreateTicket = async () => {
     setLoading(true);
     setShowTicketButton(false);
@@ -76,14 +75,28 @@ const Chatbot = ({ mode = 'admin' }) => {
     try {
       const token = localStorage.getItem('token') || ''; 
       
-      // Creamos el JSON con el formato exacto que pide el backend (TicketCreate)
+      const eqResponse = await fetch('http://127.0.0.1:8000/api/v1/equipo/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const equipos = await eqResponse.json();
+
+      console.log("Equipos del cliente:", equipos); // <-- Agregamos esto para ver qué devuelve
+
+      if (!equipos || equipos.length === 0) {
+         setMessages((prev) => [...prev, { role: 'bot', text: '❌ No tienes equipos vinculados a tu cuenta para reportar fallas. Contacta a Innotrev.' }]);
+         setLoading(false);
+         return;
+      }
+
+      const equipoAsignadoId = equipos[0].id; 
+
       const ticketData = {
         titulo: "Reporte automático vía IA",
         descripcion: `Falla reportada por el usuario: "${lastUserIssue}". \nDiagnóstico previo IA: ${priority}`,
-        equipo_id: 1 // TODO: En una versión final, este ID lo sacaríamos de un selector del cliente. Por ahora forzamos el 1.
+        equipo_id: equipoAsignadoId 
       };
 
-      const response = await fetch('http://localhost:8000/api/v1/tickets/', {
+      const response = await fetch('http://127.0.0.1:8000/api/v1/tickets/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -98,6 +111,8 @@ const Chatbot = ({ mode = 'admin' }) => {
           text: '✅ He generado un ticket de soporte técnico (Prioridad: Alta) con los detalles de tu problema. Un ingeniero de Innotrev se pondrá en contacto contigo a la brevedad.' 
         }]);
       } else {
+        const errData = await response.json();
+        console.error("Error al crear ticket:", errData);
         throw new Error("No se pudo crear");
       }
     } catch (error) {

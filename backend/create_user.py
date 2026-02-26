@@ -12,43 +12,58 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 async def create_user():
     db = SessionLocal()
     try:
-        # --- Crear Roles si no existen ---
-        admin_role = db.query(Role).filter(Role.nombre == "ADMIN").first()
-        if not admin_role:
-            admin_role = Role(nombre="ADMIN")
-            db.add(admin_role)
-
-        ventas_role = db.query(Role).filter(Role.nombre == "VENTAS").first()
-        if not ventas_role:
-            ventas_role = Role(nombre="VENTAS")
-            db.add(ventas_role)
+        # --- 1. CREAR ROLES SI NO EXISTEN ---
+        roles_necesarios = ["ADMIN", "VENTAS", "CLIENTE"]
         
+        for role_name in roles_necesarios:
+            role = db.query(Role).filter(Role.nombre == role_name).first()
+            if not role:
+                new_role = Role(nombre=role_name)
+                db.add(new_role)
         db.commit()
 
-        # --- Crear Usuario Admin ---
+        # Obtenemos los IDs de los roles recién creados o existentes
+        admin_role = db.query(Role).filter(Role.nombre == "ADMIN").first()
+        ventas_role = db.query(Role).filter(Role.nombre == "VENTAS").first()
+        cliente_role = db.query(Role).filter(Role.nombre == "CLIENTE").first()
+
+        # --- 2. CREAR USUARIOS ---
+        
+        # Usuario Administrador / Técnico
         admin_user = db.query(User).filter(User.email == "admin@innotrev.com").first()
         if not admin_user:
             admin_user = User(
-                nombre="Admin User",
+                nombre="Técnico Innotrev",
                 email="admin@innotrev.com",
                 password_hash=get_password_hash("admin123"),
                 role_id=admin_role.id
             )
             db.add(admin_user)
 
-        # --- Crear Usuario Ventas ---
+        # Usuario Ventas
         ventas_user = db.query(User).filter(User.email == "ventas@innotrev.com").first()
         if not ventas_user:
             ventas_user = User(
-                nombre="Ventas User",
+                nombre="Ventas Innotrev",
                 email="ventas@innotrev.com",
                 password_hash=get_password_hash("ventas123"),
                 role_id=ventas_role.id
             )
             db.add(ventas_user)
 
+        # Usuario Cliente (¡NUEVO!)
+        cliente_user = db.query(User).filter(User.email == "cliente@alpha.com").first()
+        if not cliente_user:
+            cliente_user = User(
+                nombre="Cliente Alpha S.A.",
+                email="cliente@alpha.com",
+                password_hash=get_password_hash("cliente123"),
+                role_id=cliente_role.id
+            )
+            db.add(cliente_user)
+
         db.commit()
-        print("Usuarios y roles creados exitosamente.")
+        print("✅ Usuarios y roles (Admin, Ventas y Cliente) creados o verificados exitosamente.")
 
     finally:
         db.close()

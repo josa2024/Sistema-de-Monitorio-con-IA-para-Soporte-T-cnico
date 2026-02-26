@@ -9,12 +9,14 @@ from app.schemas.auth import Token
 
 router = APIRouter()
 
-@router.post("/login/access-token", response_model=Token)
+# Nota: Deberíamos idealmente crear un nuevo esquema de respuesta que incluya el rol,
+# pero para hacerlo rápido y compatible con OAuth2, podemos enviarlo junto al token.
+@router.post("/login/access-token")
 def login_for_access_token(
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ):
     """
-    Autentica a un usuario y devuelve un token de acceso.
+    Autentica a un usuario y devuelve un token de acceso y su rol.
     """
     user = user_repo.get_user_by_email(db, email=form_data.username)
     if not user or not verify_password(form_data.password, user.password_hash):
@@ -23,5 +25,14 @@ def login_for_access_token(
             detail="Usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
     access_token = create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    
+    # Obtenemos el nombre del rol para enviarlo al frontend
+    user_role = user.role.nombre if user.role else "CLIENTE"
+
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "role": user_role  # <-- NUEVO: Enviamos el rol al frontend
+    }

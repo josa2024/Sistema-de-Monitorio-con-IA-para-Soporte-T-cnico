@@ -54,8 +54,14 @@ class InventoryService:
             )
         return equipment
 
-    def list_equipments(self, db: Session, skip: int = 0, limit: int = 100) -> List[Equipo]:
-        return self.equipment_repo.get_all(db, skip=skip, limit=limit)
+    # ¡AQUÍ ESTÁ LA MAGIA DEL FILTRADO! Añadimos current_user
+    def list_equipments(self, db: Session, skip: int = 0, limit: int = 100, current_user: User = None) -> List[Equipo]:
+        # Si no hay usuario o es Admin/Ventas, devuelve todos
+        if not current_user or current_user.role.nombre in ["ADMIN", "VENTAS"]:
+            return self.equipment_repo.get_all(db, skip=skip, limit=limit)
+        
+        # Si es cliente, filtramos por su ID en la base de datos
+        return db.query(Equipo).filter(Equipo.cliente_id == current_user.id).offset(skip).limit(limit).all()
 
     def update_equipment(self, db: Session, equipment_id: int, equipment_update: EquipmentUpdate, current_user: User) -> Equipo:
         db_equipment = self.get_equipment_by_id(db, equipment_id)
@@ -69,7 +75,6 @@ class InventoryService:
                 equipo_id=equipment_id,
                 evento="CAMBIO_ESTATUS",
                 detalles={
-                    # Extraemos el texto plano con .value
                     "status_anterior": status_anterior.value if status_anterior else None,
                     "status_nuevo": update_data["status"].value if hasattr(update_data["status"], 'value') else update_data["status"],
                     "usuario_id": current_user.id
@@ -99,7 +104,6 @@ class InventoryService:
             equipo_id=equipment_id,
             evento="RECEPCION_EQUIPO",
             detalles={
-                # Extraemos el texto plano con .value
                 "status_anterior": status_anterior.value if status_anterior else None,
                 "status_nuevo": "INSTALADO",
                 "usuario_id": current_user.id,

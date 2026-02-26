@@ -23,20 +23,21 @@ class TicketService:
             raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
         # 2. Validar que el equipo pertenece al cliente que reporta
-        # Esta es una regla de seguridad crítica para evitar reportes en equipos ajenos.
         if equipo.cliente_id != current_user.id:
              raise HTTPException(
                  status_code=status.HTTP_403_FORBIDDEN, 
                  detail="No tienes permiso para reportar fallas en este equipo."
              )
 
-        # 3. Crear la instancia del modelo con valores por defecto
+        # 3. Crear la instancia usando los nombres CORRECTOS del modelo
         new_ticket = Ticket(
+            titulo=ticket_in.titulo,
+            descripcion=ticket_in.descripcion,
             equipo_id=ticket_in.equipo_id,
             cliente_id=current_user.id,
-            descripcion_cliente=ticket_in.descripcion_cliente,
-            status_reporte="ABIERTO",
-            prioridad="MEDIA", # Prioridad por defecto hasta que la IA la analice
+            status="ABIERTO",
+            # Detectamos si la IA nos mandó prioridad ALTA en la descripción
+            prioridad="ALTA" if "ALTA" in ticket_in.descripcion or "CRITICA" in ticket_in.descripcion else "MEDIA"
         )
 
         created_ticket = self.ticket_repo.create_ticket(db, new_ticket)
@@ -76,7 +77,7 @@ class TicketService:
         if not ticket:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
         
-        # Validar permisos: Solo ADMIN (Técnicos) pueden actualizar estatus/prioridad
+        # Validar permisos
         if current_user.role.nombre != "ADMIN":
              raise HTTPException(
                  status_code=status.HTTP_403_FORBIDDEN, 
@@ -87,19 +88,17 @@ class TicketService:
         return self.ticket_repo.update(db, db_obj=ticket, obj_in=update_data)
 
     def add_comment(self, db: Session, ticket_id: int, comment_in: CommentCreate, current_user: User) -> Comment:
-        # Reutilizamos la lógica de permisos de get_ticket_detail para asegurar que solo
-        # el dueño o un admin puedan comentar.
         self.get_ticket_detail(db, ticket_id, current_user)
         
+        # Corrección de variables de comentarios
         new_comment = Comment(
             ticket_id=ticket_id,
-            user_id=current_user.id,
-            content=comment_in.content
+            usuario_id=current_user.id,
+            contenido=comment_in.contenido
         )
         return self.ticket_repo.create_comment(db, new_comment)
 
     def list_comments(self, db: Session, ticket_id: int, current_user: User) -> list[Comment]:
-        # Validar acceso
         self.get_ticket_detail(db, ticket_id, current_user)
         return self.ticket_repo.get_comments(db, ticket_id)
 
@@ -108,18 +107,16 @@ class TicketService:
         if not ticket:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
         
-        # Validar permisos: Solo ADMIN (Técnicos) pueden asignarse tickets
         if current_user.role.nombre != "ADMIN":
              raise HTTPException(
                  status_code=status.HTTP_403_FORBIDDEN, 
                  detail="No tienes permiso para asignarte tickets."
              )
         
-        # Actualizar tecnico_id y cambiar status a EN_PROGRESO
-        update_data = {"tecnico_id": current_user.id, "status_reporte": "EN_PROGRESO"}
+        # Corrección de nombre de variable (status en lugar de status_reporte)
+        update_data = {"status": "EN_PROGRESO"}
         updated_ticket = self.ticket_repo.update(db, db_obj=ticket, obj_in=update_data)
 
-        # Notificar vía WebSocket
         payload = {
             "evento": "TICKET_ASIGNADO",
             "ticket_id": updated_ticket.id,
