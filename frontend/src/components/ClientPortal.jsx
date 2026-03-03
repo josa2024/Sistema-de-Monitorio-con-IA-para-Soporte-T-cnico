@@ -3,7 +3,7 @@ import { ShieldCheck, UserCircle, PackageCheck, ArrowLeft, CheckCircle, Ticket, 
 import { motion, AnimatePresence } from 'framer-motion';
 import Chatbot from './Chatbot'; 
 
-const ClientPortal = ({ onLogout }) => {
+const ClientPortal = ({ onLogout, userName }) => {
   const [activeView, setActiveView] = useState('home');
   const [formData, setFormData] = useState({ numeroSerie: '', fechaRecepcion: '', estadoEmpaque: '', confirmacionEncendido: false });
   const [isLoading, setIsLoading] = useState(false);
@@ -97,17 +97,13 @@ const ClientPortal = ({ onLogout }) => {
   };
 
   return (
-    // 🚀 CONTENEDOR MAESTRO: Pantalla completa, sin scroll externo, todo bloqueado.
     <div className="h-screen w-full bg-slate-100 font-sans flex flex-col overflow-hidden relative">
-      
-      {/* 🚀 CAPA DE ESFERAS: Bloqueada para no causar overflow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40rem] h-[40rem] bg-blue-400/40 rounded-full mix-blend-multiply filter blur-[100px] animate-blob"></div>
         <div className="absolute top-[20%] right-[-10%] w-[35rem] h-[35rem] bg-purple-400/40 rounded-full mix-blend-multiply filter blur-[100px] animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[40rem] h-[40rem] bg-emerald-400/30 rounded-full mix-blend-multiply filter blur-[100px] animate-blob animation-delay-4000"></div>
       </div>
       
-      {/* 🚀 HEADER ESTÁTICO: Nunca se moverá de aquí */}
       <header className="flex-shrink-0 bg-white/60 backdrop-blur-xl border-b border-white/40 py-4 px-8 flex justify-between items-center shadow-sm z-20">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveView('home')}>
           <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center font-bold text-white text-xl shadow-lg shadow-blue-500/30">IN</div>
@@ -116,28 +112,27 @@ const ClientPortal = ({ onLogout }) => {
         <div className="flex items-center gap-4">
           <button onClick={() => setActiveView('tickets')} className={`text-sm font-medium transition-colors hidden sm:block ${activeView === 'tickets' ? 'text-blue-600 font-bold' : 'text-slate-600 hover:text-blue-600'}`}>Mis Tickets</button>
           <div className="h-6 w-px bg-slate-300/50 hidden sm:block"></div>
+          
+          {/* AQUÍ ESTÁ EL NOMBRE DINÁMICO */}
           <div className="flex items-center gap-2 cursor-pointer bg-white/40 px-3 py-1.5 rounded-full border border-white/50 shadow-sm">
             <UserCircle size={20} className="text-blue-600" />
-            <span className="text-sm font-medium text-slate-700 hidden sm:block">Cliente Alpha S.A.</span>
+            <span className="text-sm font-medium text-slate-700 hidden sm:block">{userName}</span>
           </div>
-          {/* BOTÓN DE SALIR INTEGRADO AL MENÚ SUPERIOR */}
+
           <button onClick={onLogout} className="ml-2 bg-red-100 hover:bg-red-200 text-red-600 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors shadow-sm">
             <LogOut size={16} /> <span className="hidden sm:inline">Salir</span>
           </button>
         </div>
       </header>
 
-      {/* 🚀 ÁREA PRINCIPAL: Toma el resto de la pantalla y maneja su propio scroll internamente */}
       <main className="flex-1 overflow-hidden relative z-10 px-4 py-8">
         <div className="max-w-7xl mx-auto h-full grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Columna Izquierda (Tarjetas): Ahora tiene overflow-y-auto propio */}
           <div className="lg:col-span-1 h-full overflow-y-auto pr-2 pb-10">
             <AnimatePresence mode="wait">
               {activeView === 'home' && (
                 <motion.div key="home" variants={viewVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
                   <div>
-                    <h1 className="text-4xl font-black text-slate-800 leading-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500">Hola,<br/>¿cómo podemos ayudarte hoy?</h1>
+                    <h1 className="text-4xl font-black text-slate-800 leading-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-500">Hola, {userName} <br/>¿cómo podemos ayudarte hoy?</h1>
                     <p className="text-slate-600 mt-3 text-sm font-medium">Nuestro asistente de Inteligencia Artificial está listo para diagnosticar tu equipo en segundos.</p>
                   </div>
                   <div className="grid grid-cols-1 gap-4 mt-8">
@@ -209,7 +204,6 @@ const ClientPortal = ({ onLogout }) => {
             </AnimatePresence>
           </div>
 
-          {/* Columna Derecha (Chatbot): Altura completa sin afectar al resto */}
           <div className="lg:col-span-2 h-full pb-8">
             <div className="h-full bg-white/60 backdrop-blur-2xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.1)] border border-white/60 overflow-hidden">
               <Chatbot mode="client" />

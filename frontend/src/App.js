@@ -8,32 +8,38 @@ import ClientPortal from './components/ClientPortal';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
   const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || null);
+  const [userName, setUserName] = useState(localStorage.getItem('userName') || 'Cliente');
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  const handleLoginSuccess = (token, role) => {
+  const handleLoginSuccess = (token, role, nombre) => {
     localStorage.setItem('token', token);
     localStorage.setItem('userRole', role);
+    if (nombre) localStorage.setItem('userName', nombre);
+    
     setIsAuthenticated(true);
     setUserRole(role);
+    if (nombre) setUserName(nombre);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userRole');
+    localStorage.removeItem('userName');
     setIsAuthenticated(false);
     setUserRole(null);
+    setUserName('');
   };
 
   if (!isAuthenticated) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
-  // 🚀 ESTRUCTURA LIMPIA: Le pasamos la función de salir directamente al portal
+  // PORTAL DEL CLIENTE
   if (userRole === 'CLIENTE') {
-    return <ClientPortal onLogout={handleLogout} />;
+    return <ClientPortal onLogout={handleLogout} userName={userName} />;
   }
 
-  // Dashboard de Admin
+  // DASHBOARD DEL ADMINISTRADOR
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
       <aside className="w-64 bg-[#1a2654] text-slate-300 flex flex-col shadow-2xl z-20 hidden md:flex">
@@ -72,8 +78,8 @@ function App() {
             <div className="flex items-center cursor-pointer">
               <UserCircle size={32} className="text-slate-400" />
               <div className="ml-3 hidden sm:block">
-                <p className="text-sm font-medium text-slate-700 leading-none">Admin Soporte</p>
-                <p className="text-xs text-slate-500 mt-1">Nivel 0</p>
+                <p className="text-sm font-medium text-slate-700 leading-none">{userName}</p>
+                <p className="text-xs text-slate-500 mt-1">Administrador</p>
               </div>
             </div>
           </div>
@@ -91,7 +97,6 @@ function App() {
               </div>
             </div>
           )}
-
           {activeTab === 'dashboard' && (
             <div className="max-w-7xl mx-auto h-full w-full overflow-y-auto pr-2">
               <Dashboard />
@@ -105,12 +110,7 @@ function App() {
 
 function NavItem({ icon, label, isActive, onClick }) {
   return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-        isActive ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-white/10 hover:text-white'
-      }`}
-    >
+    <button onClick={onClick} className={`w-full flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-blue-600 text-white shadow-md' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}>
       <span className="mr-3">{icon}</span>{label}
     </button>
   );

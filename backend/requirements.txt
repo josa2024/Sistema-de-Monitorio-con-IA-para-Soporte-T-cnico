@@ -27,3 +27,4 @@ langchain-community
 langchain-ollama
 faiss-cpu
 langchain-classic
+email-validator==2.1.0.post1
