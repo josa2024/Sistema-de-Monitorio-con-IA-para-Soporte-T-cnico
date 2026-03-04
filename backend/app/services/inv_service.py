@@ -88,11 +88,17 @@ class InventoryService:
         db_equipment = self.get_equipment_by_id(db, equipment_id)
         status_anterior = db_equipment.status
 
+        # Actualizamos los campos básicos
         db_equipment.estado_empaque = reception_data.estado_empaque
         db_equipment.confirmacion_encendido = reception_data.confirmacion_encendido
         db_equipment.fecha_recepcion = reception_data.fecha_recepcion
         db_equipment.status = 'INSTALADO'
+        
+        # --- NUEVO: Guardar la ruta de la evidencia fotográfica ---
+        if reception_data.ruta_evidencia:
+            db_equipment.ruta_evidencia = reception_data.ruta_evidencia
 
+        # Activar garantía si encendió correctamente
         if reception_data.confirmacion_encendido:
             db_equipment.fecha_vencimiento_garantia = reception_data.fecha_recepcion + timedelta(days=365)
 
@@ -100,6 +106,7 @@ class InventoryService:
         db.commit()
         db.refresh(db_equipment)
 
+        # Generar un log detallado que incluya si se subió una foto
         log = LogEventos(
             equipo_id=equipment_id,
             evento="RECEPCION_EQUIPO",
@@ -108,7 +115,8 @@ class InventoryService:
                 "status_nuevo": "INSTALADO",
                 "usuario_id": current_user.id,
                 "garantia_activada": reception_data.confirmacion_encendido,
-                "vencimiento_garantia": str(db_equipment.fecha_vencimiento_garantia) if db_equipment.fecha_vencimiento_garantia else None
+                "vencimiento_garantia": str(db_equipment.fecha_vencimiento_garantia) if db_equipment.fecha_vencimiento_garantia else None,
+                "evidencia_adjuntada": bool(reception_data.ruta_evidencia) # Registramos en el log si hubo foto
             }
         )
         self.log_repo.create_log(db, log)

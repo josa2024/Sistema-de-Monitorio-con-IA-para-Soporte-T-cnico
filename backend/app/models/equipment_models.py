@@ -29,16 +29,24 @@ class TipoGarantia(enum.Enum):
 
 class Equipo(Base):
     __tablename__ = "equipos"
+    
     id = Column(Integer, primary_key=True, index=True)
     numero_serie = Column(String, unique=True, index=True, nullable=False)
     modelo = Column(String, index=True)
     cliente_id = Column(Integer, ForeignKey("usuarios.id"))
     status = Column(Enum(StatusEquipo), default=StatusEquipo.EN_TRANSITO)
     fecha_salida_sucursal = Column(DateTime, default=datetime.utcnow)
+    
+    # --- NUEVOS CAMPOS AÑADIDOS PARA LA RECEPCIÓN ---
+    estado_empaque = Column(String, nullable=True)
+    confirmacion_encendido = Column(Boolean, default=False)
+    fecha_recepcion = Column(DateTime, nullable=True)
+    fecha_vencimiento_garantia = Column(DateTime, nullable=True)
+    ruta_evidencia = Column(String, nullable=True) 
+    
+    # --- RELACIONES ---
     cliente = relationship("User", back_populates="equipos")
-    seguimiento = relationship(
-        "SeguimientoInstalacion", uselist=False, back_populates="equipo"
-    )
+    seguimiento = relationship("SeguimientoInstalacion", uselist=False, back_populates="equipo")
     garantias = relationship("GarantiaLicencia", back_populates="equipo")
     reportes = relationship("ReporteAnomalias", back_populates="equipo")
     logs = relationship("LogEventos", back_populates="equipo")

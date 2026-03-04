@@ -17,6 +17,8 @@ class EquipmentReception(BaseModel):
     estado_empaque: Optional[str] = None
     confirmacion_encendido: bool = False
     fecha_recepcion: datetime
+    ruta_evidencia: Optional[str] = None
+    ruta_evidencia: Optional[str] = None  # <-- NUEVO CAMPO AGREGADO
 
 class EquipmentUpdate(BaseModel):
     """Esquema para actualizar un equipo. Todos los campos son opcionales."""
@@ -35,6 +37,7 @@ class EquipmentResponse(EquipmentBase):
     estado_empaque: Optional[str] = None
     confirmacion_encendido: bool = False
     fecha_vencimiento_garantia: Optional[datetime] = None
+    ruta_evidencia: Optional[str] = None  # <-- NUEVO CAMPO AGREGADO
 
     class Config:
         """Habilita el modo 'desde atributos' para mapear desde el modelo SQLAlchemy."""

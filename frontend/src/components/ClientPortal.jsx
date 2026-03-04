@@ -5,7 +5,13 @@ import Chatbot from './Chatbot';
 
 const ClientPortal = ({ onLogout, userName }) => {
   const [activeView, setActiveView] = useState('home');
-  const [formData, setFormData] = useState({ numeroSerie: '', fechaRecepcion: '', estadoEmpaque: '', confirmacionEncendido: false });
+  const [formData, setFormData] = useState({ 
+    numeroSerie: '', 
+    fechaRecepcion: '', 
+    estadoEmpaque: '', 
+    confirmacionEncendido: false,
+    evidenciaFotografica: null 
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [mensaje, setMensaje] = useState(null);
   const [ticketsList, setTicketsList] = useState([]);
@@ -21,29 +27,60 @@ const ClientPortal = ({ onLogout, userName }) => {
     setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFormData(prev => ({ ...prev, evidenciaFotografica: e.target.files[0] }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true); setMensaje(null);
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('❌ Seguridad: No tienes un token válido.');
+      
       const timestamp = Date.now();
-      const resEquipos = await fetch(`http://127.0.0.1:8000/api/v1/equipo/?t=${timestamp}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const resEquipos = await fetch(`http://127.0.0.1:8000/api/v1/equipo/?t=${timestamp}`, { 
+        headers: { 'Authorization': `Bearer ${token}` } 
+      });
+      
       if (!resEquipos.ok) throw new Error(`❌ Error al conectar con la base de datos`);
       const equipos = await resEquipos.json();
       const equipoEncontrado = equipos.find(eq => eq.numero_serie === formData.numeroSerie);
+      
       if (!equipoEncontrado) throw new Error('❌ El Número de Serie ingresado no existe en tu cuenta.');
-      const payload = { estado_empaque: formData.estadoEmpaque, confirmacion_encendido: formData.confirmacionEncendido, fecha_recepcion: new Date(formData.fechaRecepcion).toISOString() };
+      
+      const payload = new FormData();
+      payload.append('estado_empaque', formData.estadoEmpaque);
+      payload.append('confirmacion_encendido', formData.confirmacionEncendido);
+      payload.append('fecha_recepcion', new Date(formData.fechaRecepcion).toISOString());
+
+      if (formData.evidenciaFotografica) {
+        payload.append('evidencia', formData.evidenciaFotografica);
+      }
+
       const response = await fetch(`http://127.0.0.1:8000/api/v1/equipo/${equipoEncontrado.id}/reception?t=${timestamp}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(payload)
+        method: 'POST', 
+        headers: { 'Authorization': `Bearer ${token}` }, 
+        body: payload
       });
+      
       if (!response.ok) throw new Error(`❌ Error del servidor al registrar.`);
+      
       setMensaje({ tipo: 'exito', texto: '✅ ¡Recepción registrada exitosamente! Tu garantía está activa.' });
+      
       setTimeout(() => {
-        setFormData({ numeroSerie: '', fechaRecepcion: '', estadoEmpaque: '', confirmacionEncendido: false });
-        setActiveView('warranties'); setMensaje(null);
+        setFormData({ numeroSerie: '', fechaRecepcion: '', estadoEmpaque: '', confirmacionEncendido: false, evidenciaFotografica: null });
+        setActiveView('warranties'); 
+        setMensaje(null);
       }, 3000);
-    } catch (error) { setMensaje({ tipo: 'error', texto: error.message }); } finally { setIsLoading(false); }
+      
+    } catch (error) { 
+      setMensaje({ tipo: 'error', texto: error.message }); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const fetchTickets = async () => {
@@ -113,7 +150,6 @@ const ClientPortal = ({ onLogout, userName }) => {
           <button onClick={() => setActiveView('tickets')} className={`text-sm font-medium transition-colors hidden sm:block ${activeView === 'tickets' ? 'text-blue-600 font-bold' : 'text-slate-600 hover:text-blue-600'}`}>Mis Tickets</button>
           <div className="h-6 w-px bg-slate-300/50 hidden sm:block"></div>
           
-          {/* AQUÍ ESTÁ EL NOMBRE DINÁMICO */}
           <div className="flex items-center gap-2 cursor-pointer bg-white/40 px-3 py-1.5 rounded-full border border-white/50 shadow-sm">
             <UserCircle size={20} className="text-blue-600" />
             <span className="text-sm font-medium text-slate-700 hidden sm:block">{userName}</span>
@@ -173,13 +209,45 @@ const ClientPortal = ({ onLogout, userName }) => {
                   <button onClick={() => setActiveView('home')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 text-sm font-bold transition-colors"><ArrowLeft size={16} /> Volver</button>
                   <h2 className="text-2xl font-black text-slate-800 mb-6">Registro de Recepción</h2>
                   {mensaje && (<div className={`p-4 rounded-xl mb-6 text-sm font-bold shadow-sm ${mensaje.tipo === 'exito' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{mensaje.texto}</div>)}
+                  
                   <form className="space-y-5" onSubmit={handleSubmit}>
-                    <div><label className="block text-sm font-bold text-slate-700 mb-2">Número de Serie</label><input type="text" name="numeroSerie" value={formData.numeroSerie} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
-                    <div><label className="block text-sm font-bold text-slate-700 mb-2">Fecha de Recepción</label><input type="date" name="fechaRecepcion" value={formData.fechaRecepcion} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
-                    <div><label className="block text-sm font-bold text-slate-700 mb-2">Estado del Empaque</label><select name="estadoEmpaque" value={formData.estadoEmpaque} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"><option value="">Selecciona...</option><option value="Excelente">Excelente</option><option value="Dañado">Dañado</option></select></div>
-                    <div className="flex items-start gap-3 mt-6 bg-blue-50/50 backdrop-blur-sm p-4 rounded-xl border border-blue-100"><input type="checkbox" id="encendido" name="confirmacionEncendido" checked={formData.confirmacionEncendido} onChange={handleInputChange} required className="mt-1 w-5 h-5 accent-blue-600 rounded" /><label htmlFor="encendido" className="text-sm text-slate-700 cursor-pointer font-medium">Confirmo que el equipo <strong>encendió correctamente</strong> y está operativo.</label></div>
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl mt-8 shadow-lg shadow-blue-500/30">{isLoading ? 'Procesando...' : 'Confirmar y Activar Garantía'}</motion.button>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Número de Serie</label>
+                      <input type="text" name="numeroSerie" value={formData.numeroSerie} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Fecha de Recepción</label>
+                      <input type="date" name="fechaRecepcion" value={formData.fechaRecepcion} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Estado del Empaque</label>
+                      <select name="estadoEmpaque" value={formData.estadoEmpaque} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
+                        <option value="">Selecciona...</option>
+                        <option value="Excelente">Excelente</option>
+                        <option value="Dañado">Dañado</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Evidencia Fotográfica (Opcional)</label>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleFileChange}
+                        className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
+                      />
+                    </div>
+
+                    <div className="flex items-start gap-3 mt-6 bg-blue-50/50 backdrop-blur-sm p-4 rounded-xl border border-blue-100">
+                      <input type="checkbox" id="encendido" name="confirmacionEncendido" checked={formData.confirmacionEncendido} onChange={handleInputChange} required className="mt-1 w-5 h-5 accent-blue-600 rounded" />
+                      <label htmlFor="encendido" className="text-sm text-slate-700 cursor-pointer font-medium">Confirmo que el equipo <strong>encendió correctamente</strong> y está operativo.</label>
+                    </div>
+                    
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl mt-8 shadow-lg shadow-blue-500/30">
+                      {isLoading ? 'Procesando...' : 'Confirmar y Activar Garantía'}
+                    </motion.button>
                   </form>
+
                 </motion.div>
               )}
 
