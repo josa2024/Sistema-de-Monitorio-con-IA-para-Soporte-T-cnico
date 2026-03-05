@@ -1,9 +1,9 @@
 # 1. Usa una imagen base de Python ligera
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # 2. Establece variables de entorno recomendadas
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # 3. Establece el directorio de trabajo
 WORKDIR /app

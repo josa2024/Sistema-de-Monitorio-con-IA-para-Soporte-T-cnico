@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Type
 from app.models.equipment_models import Equipo
 
 class EquipmentRepository:
@@ -20,7 +20,7 @@ class EquipmentRepository:
         """Busca un equipo por su ID primario."""
         return db.query(Equipo).filter(Equipo.id == equipment_id).first()
 
-    def get_all(self, db: Session, skip: int = 0, limit: int = 100) -> List[Equipo]:
+    def get_all(self, db: Session, skip: int = 0, limit: int = 100) -> List[Type[Equipo]]:
         """Recupera una lista de equipos con paginación."""
         return db.query(Equipo).offset(skip).limit(limit).all()
 

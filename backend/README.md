@@ -1,125 +1,88 @@
-# Backend de Innotrev
+# Backend del Sistema de Soporte Innotrev
 
-Este es el backend para el sistema Innotrev, construido con FastAPI. Incluye gestión de usuarios, roles, equipos, tickets con WebSockets y licencias.
+Este proyecto contiene el backend para el sistema de monitoreo y soporte técnico de Innotrev. Está desarrollado con Python, FastAPI, SQLAlchemy y PostgreSQL.
 
-## Ejecutando la aplicación
+## Arquitectura
 
-1.  **Instalar dependencias:**
-    ```bash
-    pip install -r requirements.txt
-    # Parche de compatibilidad para passlib:
-    pip install "bcrypt==3.2.2"
-    ```
+El backend sigue un diseño de **Monolito Modular con Arquitectura en Capas**:
 
-2.  **Configurar la base de datos:**
-    - Asegúrate de tener un servidor PostgreSQL en ejecución.
-    - Crea una base de datos llamada `innotrev`.
-    - Crea un archivo `.env` en este directorio con el siguiente contenido, reemplazando las credenciales con las tuyas:
-      ```
-      DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/innotrev
-      SECRET_KEY=<your_secret_key>
-      ALGORITHM=HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES=43200
-      ```
-      Puedes generar una clave secreta usando `python -c "import secrets; print(secrets.token_hex(32))"`.
+-   **`app/core`**: Configuración central, seguridad y gestión de la sesión de BD.
+-   **`app/models`**: Modelos de datos (ORM de SQLAlchemy).
+-   **`app/schemas`**: Esquemas de validación y serialización (Pydantic).
+-   **`app/repositories`**: Capa de acceso a datos (CRUD).
+-   **`app/services`**: Capa de lógica de negocio.
+-   **`app/api/endpoints`**: Capa de presentación (endpoints HTTP).
 
-3.  **Ejecutar migraciones de base de datos:**
-    ```bash
-    alembic upgrade head
-    ```
+## Requisitos Previos
 
-4.  **Ejecutar la aplicación:**
-    ```bash
-    uvicorn app.main:app --reload
-    ```
-    La aplicación estará disponible en `http://127.0.0.1:8000`.
+-   Python 3.11 o superior.
+-   Docker y Docker Compose (recomendado para un despliegue sencillo).
+-   Un servidor PostgreSQL en ejecución (si no se usa Docker).
 
-## Creando un usuario con un rol específico
+## Configuración y Puesta en Marcha
 
-Para probar los endpoints protegidos, necesitas crear un usuario con un rol específico en la base de datos. Puedes hacer esto ejecutando un script de Python.
+### 1. Variables de Entorno
 
-1.  **Crea un script `create_user.py` en el directorio `backend` con el siguiente contenido:**
-    ```python
-    import asyncio
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from app.core.config import settings
-    from app.core.security import get_password_hash
-    from app.models.user_models import User, Role
+Crea un archivo `.env` en la raíz del directorio `backend/`. Este archivo no debe ser versionado en Git.
 
-    # --- Configuración de Base de Datos ---
-    engine = create_engine(settings.DATABASE_URL)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+```env
+# URL de conexión a tu base de datos PostgreSQL
+DATABASE_URL=postgresql+psycopg2://usuario:contraseña@host:puerto/nombre_db
 
-    async def create_user():
-        db = SessionLocal()
-        try:
-            # --- Crear Roles si no existen ---
-            admin_role = db.query(Role).filter(Role.nombre == "ADMIN").first()
-            if not admin_role:
-                admin_role = Role(nombre="ADMIN")
-                db.add(admin_role)
+# Clave secreta para firmar los tokens JWT
+SECRET_KEY=tu_clave_secreta_aqui
 
-            ventas_role = db.query(Role).filter(Role.nombre == "VENTAS").first()
-            if not ventas_role:
-                ventas_role = Role(nombre="VENTAS")
-                db.add(ventas_role)
-            
-            db.commit()
+# Algoritmo de firma para JWT
+ALGORITHM=HS256
 
-            # --- Crear Usuario Admin ---
-            admin_user = db.query(User).filter(User.email == "admin@innotrev.com").first()
-            if not admin_user:
-                admin_user = User(
-                    nombre="Admin User",
-                    email="admin@innotrev.com",
-                    password_hash=get_password_hash("admin123"),
-                    role_id=admin_role.id
-                )
-                db.add(admin_user)
+# Duración del token de acceso en minutos
+ACCESS_TOKEN_EXPIRE_MINUTES=43200
+```
 
-            # --- Crear Usuario Ventas ---
-            ventas_user = db.query(User).filter(User.email == "ventas@innotrev.com").first()
-            if not ventas_user:
-                ventas_user = User(
-                    nombre="Ventas User",
-                    email="ventas@innotrev.com",
-                    password_hash=get_password_hash("ventas123"),
-                    role_id=ventas_role.id
-                )
-                db.add(ventas_user)
+> **Tip**: Puedes generar una `SECRET_KEY` segura con el comando:
+> `python -c "import secrets; print(secrets.token_hex(32))"`
 
-            db.commit()
-            print("Usuarios y roles creados exitosamente.")
+### 2. Instalación de Dependencias
 
-        finally:
-            db.close()
+```bash
+pip install -r requirements.txt
+```
 
-    if __name__ == "__main__":
-        asyncio.run(create_user())
+### 3. Migraciones de la Base de Datos
 
-    ```
+Con la base de datos accesible y el archivo `.env` configurado, ejecuta las migraciones para crear las tablas:
 
-2.  **Ejecutar el script:**
-    ```bash
-    python create_user.py
-    ```
+```bash
+alembic upgrade head
+```
 
-Esto creará un usuario "ADMIN" con el correo `admin@innotrev.com` y contraseña `admin123`, y un usuario "VENTAS" con el correo `ventas@innotrev.com` y contraseña `ventas123`. Ahora puedes usar estas credenciales para iniciar sesión y acceder a los endpoints protegidos.
+### 4. Creación de Usuarios Iniciales
 
-## Estado actual del desarrollo (Para Frontend e IA)
+El proyecto incluye un script para crear roles y usuarios de prueba (ADMIN, CLIENTE, etc.).
 
-El backend expone una API REST documentada automáticamente en `/docs`.
+```bash
+python create_user.py
+```
 
-### Módulos listos para integración:
-1.  **Autenticación (JWT):** Login y protección de rutas por roles (ADMIN, VENTAS, TECNICO, CLIENTE).
-2.  **Equipos:** CRUD completo.
-3.  **Tickets de Soporte:**
-    -   Creación y asignación.
-    -   **WebSockets:** Conectar a `ws://localhost:8000/ws/tickets` para recibir eventos en tiempo real (`NUEVO_TICKET`, `TICKET_ASIGNADO`).
-4.  **Licencias:**
-    -   Subida de archivos (PDF/Certificados).
-    -   Control de vencimientos.
+### 5. Ejecución del Servidor
 
-### Pendiente de implementación (IA):
--   El campo `prioridad` en los tickets actualmente se define por defecto. Se espera que el módulo de IA analice la `descripcion_cliente` para actualizar este campo automáticamente.
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+La API estará disponible en `http://localhost:8000` y la documentación interactiva (Swagger UI) en `http://localhost:8000/docs`.
+
+---
+
+## Ejecución con Docker (Recomendado)
+
+El proyecto está configurado para ejecutarse fácilmente con Docker Compose.
+
+1.  Asegúrate de tener el archivo `.env` configurado como se describió anteriormente.
+2.  Desde la raíz del proyecto (`innotrev-sistema/`), levanta los servicios:
+
+```bash
+docker-compose up --build
+```
+
+Esto construirá la imagen del backend, levantará un servicio de PostgreSQL y ejecutará las migraciones y la aplicación automáticamente.

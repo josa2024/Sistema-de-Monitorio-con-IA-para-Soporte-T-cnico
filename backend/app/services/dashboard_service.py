@@ -1,82 +1,63 @@
-from datetime import date, datetime, timedelta
-from typing import List
 from sqlalchemy.orm import Session
-from fastapi import Depends
+from sqlalchemy import func, cast, Date
+from datetime import datetime, timedelta
 
+# Importamos los modelos de la base de datos
 from app.models.equipment_models import Equipo
-from app.models.license import License
-from app.api.dashboard import ExpirationAlert
+from app.models.ticket import Ticket
+
+# Importamos los schemas de respuesta
+from app.schemas.dashboard import DashboardKpisOut, KpiItem
+
 
 class DashboardService:
-    def get_unified_expirations(self, db: Session, days_threshold: int = 30) -> List[ExpirationAlert]:
+    """
+    Servicio para calcular y obtener las métricas del Dashboard Administrativo.
+    """
+
+    def get_kpis(self, db: Session) -> DashboardKpisOut:
         """
-        Consulta garantías de equipos y licencias de software, las normaliza
-        y devuelve una lista unificada ordenada por urgencia.
+        Calcula los KPIs utilizando consultas de agregación de SQLAlchemy.
         """
-        today = date.today()
-        limit_date = today + timedelta(days=days_threshold)
-        
-        alerts = []
+        # 1. KPI: Total de equipos instalados vs. en tránsito
+        equipment_results = (
+            db.query(Equipo.estado, func.count(Equipo.id).label("count"))
+            .group_by(Equipo.estado)
+            .all()
+        )
+        equipment_summary = [
+            KpiItem(name=status, count=count) for status, count in equipment_results
+        ]
 
-        # --- 1. Procesar Garantías de Hardware (Equipos) ---
-        # Buscamos equipos instalados que tengan fecha de garantía definida
-        equipos = db.query(Equipo).filter(
-            Equipo.status == 'INSTALADO',
-            Equipo.fecha_vencimiento_garantia != None
-        ).all()
+        # 2. KPI: Tickets abiertos vs. cerrados HOY
+        today = datetime.now().date()
+        tickets_results = (
+            db.query(Ticket.estado, func.count(Ticket.id).label("count"))
+            .filter(cast(Ticket.fecha_creacion, Date) == today)
+            .group_by(Ticket.estado)
+            .all()
+        )
+        # Asumimos que Ticket.estado es un Enum, por eso usamos .value
+        tickets_today_summary = [
+            KpiItem(name=status.value, count=count) for status, count in tickets_results
+        ]
 
-        for eq in equipos:
-            # Normalización: Equipo usa datetime, necesitamos date para comparar
-            vencimiento = eq.fecha_vencimiento_garantia.date() if isinstance(eq.fecha_vencimiento_garantia, datetime) else eq.fecha_vencimiento_garantia
-            
-            # Filtramos en memoria para manejar la conversión de tipos limpiamente
-            if today <= vencimiento <= limit_date:
-                delta = (vencimiento - today).days
-                
-                prioridad = "NORMAL"
-                if delta < 7:
-                    prioridad = "CRITICA"
-                elif delta < 30:
-                    prioridad = "ALERTA"
+        # 3. KPI: Conteo de equipos con garantía próxima a vencer (próximos 30 días)
+        WARRANTY_PERIOD_DAYS = 365
+        DAYS_THRESHOLD = 30
+        now = datetime.now()
 
-                alerts.append(ExpirationAlert(
-                    id=eq.id,
-                    tipo="HARDWARE",
-                    nombre=f"{eq.modelo} (Garantía)",
-                    referencia=eq.numero_serie,
-                    fecha_vencimiento=vencimiento,
-                    dias_restantes=delta,
-                    prioridad=prioridad
-                ))
+        # La garantía vence si la fecha de inicio está entre (hoy - 365 días) y (hoy - 365 + 30 días)
+        min_start_date = now - timedelta(days=WARRANTY_PERIOD_DAYS)
+        max_start_date = min_start_date + timedelta(days=DAYS_THRESHOLD)
 
-        # --- 2. Procesar Licencias de Software ---
-        licencias = db.query(License).filter(
-            License.fecha_vencimiento >= today,
-            License.fecha_vencimiento <= limit_date
-        ).all()
+        warranties_count = db.query(func.count(Equipo.id)).filter(
+            Equipo.fecha_inicio_garantia.isnot(None),
+            Equipo.fecha_inicio_garantia.between(min_start_date, max_start_date)
+        ).scalar() or 0
 
-        for lic in licencias:
-            vencimiento = lic.fecha_vencimiento
-            delta = (vencimiento - today).days
-            
-            prioridad = "NORMAL"
-            if delta < 7:
-                prioridad = "CRITICA"
-            elif delta < 30:
-                prioridad = "ALERTA"
-
-            alerts.append(ExpirationAlert(
-                id=lic.id,
-                tipo="SOFTWARE",
-                nombre=lic.nombre_software,
-                referencia=lic.licencia_key,
-                fecha_vencimiento=vencimiento,
-                dias_restantes=delta,
-                prioridad=prioridad
-            ))
-
-        # --- 3. Ordenamiento Unificado ---
-        # Ordenamos por urgencia (menor cantidad de días restantes primero)
-        alerts.sort(key=lambda x: x.dias_restantes)
-        
-        return alerts
+        return DashboardKpisOut(
+            equipment_summary=equipment_summary,
+            tickets_today_summary=tickets_today_summary,
+            warranties_expiring_soon_count=warranties_count,
+        )

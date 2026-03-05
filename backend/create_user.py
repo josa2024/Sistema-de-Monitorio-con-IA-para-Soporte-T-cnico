@@ -3,7 +3,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.core.security import get_password_hash
-from app.models.user_models import User, Role
+
+# --- CORRECCIÓN DE IMPORTACIONES ---
+from app.models.user_models import User
+from app.models.roles import Role # Importamos Role de su propio archivo
 
 # --- Configuración de la Base de Datos ---
 engine = create_engine(settings.DATABASE_URL)
@@ -48,7 +51,7 @@ async def create_user():
             db.add(ventas_user)
 
         db.commit()
-        print("Usuarios y roles creados exitosamente.")
+        print("Usuarios y roles creados exitosamente en la base de datos.")
 
     finally:
         db.close()
