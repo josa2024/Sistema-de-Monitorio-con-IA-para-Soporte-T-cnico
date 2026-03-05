@@ -6,7 +6,8 @@ from app.core.security import create_access_token, verify_password
 from app.api.deps import get_db
 from app.repositories.user_repo import user_repo
 from app.schemas.auth import Token, UserCreate
-from app.models.user_models import Role
+# Aseguramos la importación de User y Role aquí
+from app.models.user_models import Role, User 
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ def login_for_access_token(
         "access_token": access_token, 
         "token_type": "bearer",
         "role": user_role,
-        "nombre": user.nombre  # <-- Aquí estaba el error, faltaba la coma en la línea de arriba
+        "nombre": user.nombre
     }
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -59,3 +60,12 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
     new_user = user_repo.create_user(db, user_in, role_id=role.id)
     
     return {"message": "¡Cuenta creada exitosamente!", "email": new_user.email}
+
+# --- NUEVO ENDPOINT PARA EL BUSCADOR DEL INVENTARIO ---
+@router.get("/clientes")
+def get_clientes(db: Session = Depends(get_db)):
+    """
+    Obtiene la lista de clientes registrados en el sistema para el modal de despachos.
+    """
+    clientes = db.query(User).join(Role).filter(Role.nombre == "CLIENTE").all()
+    return [{"id": c.id, "nombre": c.nombre, "email": c.email} for c in clientes]

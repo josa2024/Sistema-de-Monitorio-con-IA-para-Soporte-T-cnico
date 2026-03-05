@@ -4,6 +4,8 @@ import Login from './components/Login';
 import Chatbot from './components/Chatbot';
 import Dashboard from './components/Dashboard';
 import ClientPortal from './components/ClientPortal';
+import Inventario from './components/Inventario'; 
+import Garantias from './components/Garantias';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
@@ -42,6 +44,7 @@ function App() {
   // DASHBOARD DEL ADMINISTRADOR
   return (
     <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
+      {/* SIDEBAR AZUL INTACTO */}
       <aside className="w-64 bg-[#1a2654] text-slate-300 flex flex-col shadow-2xl z-20 hidden md:flex">
         <div className="h-16 flex items-center px-6 border-b border-white/10">
           <div className="w-8 h-8 bg-blue-500 rounded flex items-center justify-center mr-3 font-bold text-white">IN</div>
@@ -63,6 +66,7 @@ function App() {
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
+        {/* HEADER SUPERIOR INTACTO */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 flex-shrink-0">
           <div className="flex-1 max-w-md">
             <div className="relative">
@@ -85,6 +89,7 @@ function App() {
           </div>
         </header>
 
+        {/* ÁREA DE CONTENIDO DINÁMICO */}
         <main className="flex-1 p-6 overflow-hidden flex flex-col">
           {activeTab === 'ia' && (
             <div className="h-full flex flex-col max-w-5xl mx-auto w-full">
@@ -97,9 +102,23 @@ function App() {
               </div>
             </div>
           )}
+          
           {activeTab === 'dashboard' && (
             <div className="max-w-7xl mx-auto h-full w-full overflow-y-auto pr-2">
               <Dashboard />
+            </div>
+          )}
+
+          {/* NUEVA SECCIÓN DE INVENTARIO */}
+          {activeTab === 'inventario' && (
+            <div className="max-w-7xl mx-auto h-full w-full">
+              <Inventario />
+            </div>
+          )}
+
+          {activeTab === 'licencias' && (
+            <div className="max-w-7xl mx-auto h-full w-full">
+               <Garantias />
             </div>
           )}
         </main>

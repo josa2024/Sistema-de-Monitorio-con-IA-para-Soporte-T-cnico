@@ -7,7 +7,7 @@ const Dashboard = () => {
   const [equipmentList, setEquipmentList] = useState([]);
   const [ticketsList, setTicketsList] = useState([]);
   const [chartData, setChartData] = useState([]);
-  const [expiringLicenses, setExpiringLicenses] = useState([]); // <-- NUEVO ESTADO PARA VENCIMIENTOS
+  const [expiringLicenses, setExpiringLicenses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [liveAlert, setLiveAlert] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -49,7 +49,7 @@ const Dashboard = () => {
       }
 
       // 2. Obtener Licencias por Vencer
-      const licResponse = await fetch(`http://127.0.0.1:8000/api/v1/licenses/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
+      const licResponse = await fetch(`http://127.0.0.1:8000/api/v1/licencias/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
       if (licResponse.ok) {
         setExpiringLicenses(await licResponse.json());
       }
@@ -67,7 +67,6 @@ const Dashboard = () => {
         });
         setTicketsList(activeTickets);
 
-        // --- AQUÍ ES DONDE SE COLOCA EL NUEVO CÓDIGO DE LA GRÁFICA ---
         // Armado de gráfica agrupada por CATEGORÍA DE IA
         const categoryCounts = {};
         tktData.forEach(ticket => {
@@ -76,8 +75,6 @@ const Dashboard = () => {
         });
         const newChartData = Object.keys(categoryCounts).map(name => ({ name: name, fallas: categoryCounts[name] }));
         setChartData(newChartData);
-        // -------------------------------------------------------------
-
       }
     } catch (error) {
       console.error("Error de conexión:", error);
@@ -85,15 +82,6 @@ const Dashboard = () => {
       setIsLoading(false);
     }
   }, []);
-
-
-
-
-
-
-
-
-
 
   useEffect(() => {
     fetchData();
@@ -258,7 +246,9 @@ const Dashboard = () => {
                     <Bar dataKey="fallas" fill="url(#colorFallas)" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : (<div className="h-full w-full flex items-center justify-center text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">Aún no hay tickets suficientes para generar estadísticas.</div>)}
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">Aún no hay tickets suficientes para generar estadísticas.</div>
+              )}
             </div>
           </div>
 
@@ -283,7 +273,7 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* NUEVO: Tarjeta de Próximos Vencimientos */}
+            {/* Tarjeta de Próximos Vencimientos */}
             <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden relative">
               <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/10 rounded-full filter blur-[40px] pointer-events-none"></div>
               <div className="p-4 border-b border-amber-100 bg-gradient-to-r from-amber-50 to-white flex justify-between items-center relative z-10">
@@ -307,11 +297,10 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
-
         </motion.div>
       </div>
 
-      {/* Modal ... (Se mantiene intacto el modal del ticket) */}
+      {/* Modal Detalles del Ticket */}
       <AnimatePresence>
         {selectedTicket && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
