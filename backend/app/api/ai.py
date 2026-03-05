@@ -10,16 +10,15 @@ class ChatRequest(BaseModel):
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest): 
     try:
-        # 1. Obtenemos la respuesta normal
         respuesta_texto = await ai_service.chat(request.message)
-        
-        # 2. Obtenemos la prioridad (NUEVO)
         prioridad = await ai_service.classify_priority(request.message)
+        categoria = await ai_service.extract_category(request.message)
         
         # 3. Enviamos ambos datos
         return {
             "response": respuesta_texto,
-            "priority": prioridad 
+            "priority": prioridad,
+            "category": categoria
         }
         
     except Exception as e:

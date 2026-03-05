@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, Server, Search, Plus, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { motion, AnimatePresence } from 'framer-motion'; 
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Dashboard = () => {
   const [equipmentList, setEquipmentList] = useState([]);
@@ -16,7 +16,7 @@ const Dashboard = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const getStatusColor = (status) => {
-    switch(status) {
+    switch (status) {
       case 'INSTALADO': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'EN_TRANSITO': return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'FALLA_REPORTADA': return 'bg-red-100 text-red-700 border-red-200';
@@ -26,7 +26,7 @@ const Dashboard = () => {
   };
 
   const getPriorityBadge = (priority) => {
-    switch(priority) {
+    switch (priority) {
       case 'CRITICA': return 'bg-red-100 text-red-700 border-red-200 animate-pulse';
       case 'ALTA': return 'bg-orange-100 text-orange-700 border-orange-200';
       case 'MEDIA': return 'bg-blue-100 text-blue-700 border-blue-200';
@@ -37,7 +37,7 @@ const Dashboard = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token') || ''; 
+      const token = localStorage.getItem('token') || '';
       const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
       // 1. Obtener Equipos
@@ -48,7 +48,7 @@ const Dashboard = () => {
         setEquipmentList(Array.isArray(eqData) ? eqData : []);
       }
 
-      // 2. Obtener Licencias por Vencer (NUEVO)
+      // 2. Obtener Licencias por Vencer
       const licResponse = await fetch(`http://127.0.0.1:8000/api/v1/licenses/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
       if (licResponse.ok) {
         setExpiringLicenses(await licResponse.json());
@@ -59,24 +59,25 @@ const Dashboard = () => {
       if (tktResponse.ok) {
         const tktData = await tktResponse.json();
         const activeTickets = tktData.filter(t => t.status === 'ABIERTO' || t.status === 'EN_PROGRESO');
+
+        // Ordenar por prioridad
         activeTickets.sort((a, b) => {
           const val = { 'CRITICA': 4, 'ALTA': 3, 'MEDIA': 2, 'BAJA': 1 };
           return val[b.prioridad] - val[a.prioridad];
         });
         setTicketsList(activeTickets);
 
-        // Armado de gráfica
-        const eqMap = {};
-        if (Array.isArray(eqData)) {
-          eqData.forEach(eq => { eqMap[eq.id] = eq.modelo || 'Modelo Desconocido'; });
-        }
-        const modelCounts = {};
+        // --- AQUÍ ES DONDE SE COLOCA EL NUEVO CÓDIGO DE LA GRÁFICA ---
+        // Armado de gráfica agrupada por CATEGORÍA DE IA
+        const categoryCounts = {};
         tktData.forEach(ticket => {
-          const modelName = eqMap[ticket.equipo_id] || `Equipo #${ticket.equipo_id}`;
-          modelCounts[modelName] = (modelCounts[modelName] || 0) + 1;
+          const catName = ticket.categoria || 'General / Otro';
+          categoryCounts[catName] = (categoryCounts[catName] || 0) + 1;
         });
-        const newChartData = Object.keys(modelCounts).map(name => ({ name: name, fallas: modelCounts[name] }));
+        const newChartData = Object.keys(categoryCounts).map(name => ({ name: name, fallas: categoryCounts[name] }));
         setChartData(newChartData);
+        // -------------------------------------------------------------
+
       }
     } catch (error) {
       console.error("Error de conexión:", error);
@@ -85,16 +86,25 @@ const Dashboard = () => {
     }
   }, []);
 
-  useEffect(() => { 
-    fetchData(); 
+
+
+
+
+
+
+
+
+
+  useEffect(() => {
+    fetchData();
     const socket = new WebSocket('ws://127.0.0.1:8000/api/v1/ws/tickets');
     socket.onopen = () => console.log("🟢 Canal de WebSockets conectado");
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.evento === "NUEVO_TICKET") {
         setLiveAlert(`¡NUEVA ALERTA! Ticket TKT-${String(data.ticket_id).padStart(4, '0')}`);
-        setTimeout(() => setLiveAlert(null), 6000); 
-        fetchData(); 
+        setTimeout(() => setLiveAlert(null), 6000);
+        fetchData();
       }
     };
     return () => socket.close();
@@ -105,7 +115,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('token') || '';
       const res = await fetch(`http://127.0.0.1:8000/api/v1/tickets/${ticket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if(res.ok) setComments(await res.json());
+      if (res.ok) setComments(await res.json());
     } catch (e) { console.error(e); }
   };
 
@@ -116,7 +126,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('token') || '';
       await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}/assign`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` } });
-      await fetchData(); 
+      await fetchData();
       handleCloseModal();
     } finally { setIsProcessing(false); }
   };
@@ -135,7 +145,7 @@ const Dashboard = () => {
   };
 
   const handleAddComment = async () => {
-    if(!newComment.trim()) return;
+    if (!newComment.trim()) return;
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token') || '';
@@ -143,7 +153,7 @@ const Dashboard = () => {
         method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ contenido: newComment })
       });
-      if(res.ok) {
+      if (res.ok) {
         const comment = await res.json();
         setComments([...comments, comment]);
         setNewComment('');
@@ -165,7 +175,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 relative pb-10">
-      
+
       {/* Alerta animada */}
       <AnimatePresence>
         {liveAlert && (
@@ -233,13 +243,13 @@ const Dashboard = () => {
         {/* Gráfica y Tablas (Directorio + Vencimientos) */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h2 className="text-lg font-bold text-slate-800 mb-4">Anomalías Detectadas por Modelo</h2>
+            <h2 className="text-lg font-bold text-slate-800 mb-4">Anomalías Detectadas por Tipo (IA)</h2>
             <div className="h-64 w-full">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData}>
                     <defs>
-                      <linearGradient id="colorFallas" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2}/></linearGradient>
+                      <linearGradient id="colorFallas" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} /><stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2} /></linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
@@ -248,7 +258,7 @@ const Dashboard = () => {
                     <Bar dataKey="fallas" fill="url(#colorFallas)" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : ( <div className="h-full w-full flex items-center justify-center text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">Aún no hay tickets suficientes para generar estadísticas.</div> )}
+              ) : (<div className="h-full w-full flex items-center justify-center text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">Aún no hay tickets suficientes para generar estadísticas.</div>)}
             </div>
           </div>
 
@@ -267,7 +277,7 @@ const Dashboard = () => {
                           <td className="py-3 px-4"><span className={`px-2 py-1 rounded text-[10px] font-bold border ${getStatusColor(eq.status)}`}>{eq.status || 'N/A'}</span></td>
                         </tr>
                       ))
-                    ) : ( <tr><td colSpan="2" className="py-6 text-center text-slate-500 text-xs">No hay equipos.</td></tr> )}
+                    ) : (<tr><td colSpan="2" className="py-6 text-center text-slate-500 text-xs">No hay equipos.</td></tr>)}
                   </tbody>
                 </table>
               </div>
@@ -292,7 +302,7 @@ const Dashboard = () => {
                     </div>
                   ))
                 ) : (
-                   <p className="text-center text-slate-500 text-xs py-8">Todo al día. No hay vencimientos cercanos.</p>
+                  <p className="text-center text-slate-500 text-xs py-8">Todo al día. No hay vencimientos cercanos.</p>
                 )}
               </div>
             </div>
@@ -314,10 +324,10 @@ const Dashboard = () => {
                 <button onClick={handleCloseModal} className="text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors p-1.5"><X size={20} /></button>
               </div>
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 space-y-6">
-                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm"><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><AlertTriangle size={14}/> Reporte / Diagnóstico IA</h3><p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedTicket.descripcion}</p></div>
+                <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm"><h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><AlertTriangle size={14} /> Reporte / Diagnóstico IA</h3><p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedTicket.descripcion}</p></div>
                 {comments.length > 0 && (
                   <div className="space-y-4">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><MessageSquare size={14}/> Bitácora de Soporte</h3>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><MessageSquare size={14} /> Bitácora de Soporte</h3>
                     {comments.map((comment, idx) => (
                       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={idx} className="flex gap-3"><div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-sm"><User size={14} /></div><div className="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-none text-sm text-slate-700 shadow-sm w-full"><p>{comment.contenido}</p><span className="text-[10px] text-slate-400 mt-2 block font-medium">{new Date(comment.fecha_creacion).toLocaleString()}</span></div></motion.div>
                     ))}
@@ -329,7 +339,7 @@ const Dashboard = () => {
                   <div className="flex justify-end gap-3"><button onClick={handleCloseModal} className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button><motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAssignTicket} disabled={isProcessing} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-md disabled:opacity-50"><Briefcase size={16} /> {isProcessing ? 'Asignando...' : 'Asignarme este Ticket'}</motion.button></div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="flex gap-3"><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escribe una respuesta al cliente..." className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all shadow-sm" onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}/><motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAddComment} disabled={isProcessing || !newComment.trim()} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-md disabled:opacity-50">Enviar</motion.button></div>
+                    <div className="flex gap-3"><input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Escribe una respuesta al cliente..." className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all shadow-sm" onKeyDown={(e) => e.key === 'Enter' && handleAddComment()} /><motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleAddComment} disabled={isProcessing || !newComment.trim()} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-md disabled:opacity-50">Enviar</motion.button></div>
                     <div className="flex justify-between items-center pt-3 border-t border-slate-100"><span className="text-xs text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-lg">Estás trabajando en este ticket</span><motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleResolveTicket} disabled={isProcessing} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 border border-emerald-300 px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-sm disabled:opacity-50"><CheckCircle2 size={16} /> Marcar como Resuelto</motion.button></div>
                   </div>
                 )}

@@ -25,6 +25,8 @@ class Ticket(Base):
     status = Column(Enum(TicketStatus), default=TicketStatus.ABIERTO)
     prioridad = Column(Enum(TicketPriority), default=TicketPriority.MEDIA) 
     
+    categoria = Column(String, nullable=True, default="General")
+
     # <-- CORREGIDO: La tabla en español se llama "usuarios"
     cliente_id = Column(Integer, ForeignKey("usuarios.id")) 
     equipo_id = Column(Integer, ForeignKey("equipos.id"))

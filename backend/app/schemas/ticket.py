@@ -20,6 +20,7 @@ class TicketCreate(BaseModel):
     titulo: str
     descripcion: str
     equipo_id: int
+    categoria: Optional[str] = "General"
 
 class TicketUpdate(BaseModel):
     status: Optional[TicketStatus] = None
@@ -31,6 +32,7 @@ class TicketResponse(TicketCreate):
     prioridad: TicketPriority
     fecha_creacion: datetime
     cliente_id: int
+    categoria: Optional[str] = "General"
 
 class CommentCreate(BaseModel):
     contenido: str

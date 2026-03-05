@@ -65,5 +65,20 @@ class AIService:
         elif any(w in msg for w in ["error", "falla", "no puedo", "internet", "lento"]):
             return "MEDIA"
         return "BAJA"
+    
+    # 3. EXTRACTOR DE CATEGORÍAS PARA ESTADÍSTICAS (Nuevo)
+    async def extract_category(self, message: str) -> str:
+        msg = message.lower()
+        if any(w in msg for w in ["calienta", "fuego", "humo", "temperatura", "ventilador", "sobrecalentamiento", "calor"]):
+            return "Sobrecalentamiento"
+        elif any(w in msg for w in ["internet", "red", "conexión", "wifi", "lento", "desconectado", "ping", "lag"]):
+            return "Fallo de Red"
+        elif any(w in msg for w in ["pantalla", "azul", "monitor", "video", "imagen", "parpadea", "resolución"]):
+            return "Pantalla / Video"
+        elif any(w in msg for w in ["no enciende", "apaga", "batería", "corriente", "cable", "fuente", "energía", "corto"]):
+            return "Energía / Encendido"
+        elif any(w in msg for w in ["lentitud", "trabado", "congela", "virus", "software", "programa", "app", "crashea"]):
+            return "Software / Rendimiento"
+        return "General / Otro"
 
 ai_service = AIService()

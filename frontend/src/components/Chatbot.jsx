@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, ShieldAlert, AlertCircle, User, Ticket } from 'lucide-react';
+import { Send, Bot, ShieldAlert, User, Ticket } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Chatbot = ({ mode = 'admin' }) => {
@@ -11,6 +11,9 @@ const Chatbot = ({ mode = 'admin' }) => {
   const [priority, setPriority] = useState(null);
   const [showTicketButton, setShowTicketButton] = useState(false);
   const [lastUserIssue, setLastUserIssue] = useState('');
+  
+  // AQUÍ ESTÁ LA VARIABLE FALTANTE:
+  const [category, setCategory] = useState('General / Otro'); 
 
   const messagesEndRef = useRef(null);
 
@@ -31,6 +34,7 @@ const Chatbot = ({ mode = 'admin' }) => {
     setInput('');
     setLoading(true);
     setPriority(null);
+    setCategory('General / Otro'); // Reiniciamos la categoría por defecto
     setShowTicketButton(false);
 
     try {
@@ -47,11 +51,17 @@ const Chatbot = ({ mode = 'admin' }) => {
       if (!response.ok) throw new Error('Error en el servidor');
       const data = await response.json();
       
+      // Capturamos la prioridad
       if (data.priority) {
         setPriority(data.priority);
         if (mode === 'client' && (data.priority === 'ALTA' || data.priority === 'CRITICA')) {
           setShowTicketButton(true);
         }
+      }
+
+      // Capturamos la categoría que extrajo la IA
+      if (data.category) {
+        setCategory(data.category);
       }
       
       const botMsg = { role: 'bot', text: data.response };
@@ -88,7 +98,8 @@ const Chatbot = ({ mode = 'admin' }) => {
       const ticketData = {
         titulo: "Reporte automático vía IA",
         descripcion: `Falla reportada por el usuario: "${lastUserIssue}". \nDiagnóstico previo IA: ${priority}`,
-        equipo_id: equipoAsignadoId 
+        equipo_id: equipoAsignadoId,
+        categoria: category // ¡Ahora sí existe y se envía al backend!
       };
 
       const response = await fetch('http://127.0.0.1:8000/api/v1/tickets/', {
@@ -115,7 +126,6 @@ const Chatbot = ({ mode = 'admin' }) => {
     }
   };
 
-  // --- CONFIGURACIÓN DE ANIMACIÓN DE BURBUJAS ---
   const bubbleVariants = {
     hidden: { opacity: 0, y: 15, scale: 0.95 },
     visible: { 
@@ -126,7 +136,6 @@ const Chatbot = ({ mode = 'admin' }) => {
     }
   };
 
-  // --- CONFIGURACIÓN DE ANIMACIÓN "TYPING..." ---
   const typingDotVariants = {
     initial: { y: 0 },
     animate: { y: -4, transition: { duration: 0.4, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" } }
@@ -135,7 +144,6 @@ const Chatbot = ({ mode = 'admin' }) => {
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
       
-      {/* Encabezado Dinámico */}
       <div className={`px-6 py-4 border-b border-slate-200 flex items-center justify-between z-10 ${
         mode === 'admin' ? 'bg-slate-50/90 backdrop-blur-md' : 'bg-gradient-to-r from-blue-600 to-blue-700'
       }`}>
@@ -158,7 +166,6 @@ const Chatbot = ({ mode = 'admin' }) => {
         </div>
       </div>
 
-      {/* Alerta Admin Crítica (Animada) */}
       <AnimatePresence>
         {mode === 'admin' && priority === 'ALTA' && (
           <motion.div 
@@ -178,7 +185,6 @@ const Chatbot = ({ mode = 'admin' }) => {
         )}
       </AnimatePresence>
 
-      {/* Área de Mensajes */}
       <div className="flex-1 p-6 overflow-y-auto bg-slate-50 space-y-5 scroll-smooth relative">
         <AnimatePresence>
           {messages.map((msg, index) => (
@@ -206,7 +212,6 @@ const Chatbot = ({ mode = 'admin' }) => {
           ))}
         </AnimatePresence>
 
-        {/* Indicador de "Escribiendo..." Animado */}
         <AnimatePresence>
           {loading && (
             <motion.div 
@@ -227,7 +232,6 @@ const Chatbot = ({ mode = 'admin' }) => {
           )}
         </AnimatePresence>
 
-        {/* Botón de Ticket Animado */}
         <AnimatePresence>
           {mode === 'client' && showTicketButton && (
             <motion.div 
@@ -252,7 +256,6 @@ const Chatbot = ({ mode = 'admin' }) => {
         <div ref={messagesEndRef} className="h-2" />
       </div>
 
-      {/* Input */}
       <div className="p-4 bg-white border-t border-slate-200 z-10 relative">
         <div className="relative flex items-center w-full">
           <input
