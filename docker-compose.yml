@@ -14,18 +14,69 @@ services:
     networks:
       - innotrev-net
 
+  # Intermediario de mensajes para Celery
+  redis:
+    image: redis:7-alpine
+    container_name: innotrev_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - innotrev-net
+
   backend:
     container_name: innotrev_backend
     build: ./backend
     restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
     environment:
       - DATABASE_URL=postgresql://innotrev_user:innotrev_password@db:5432/innotrev_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - db
+      - redis
+    networks:
+      - innotrev-net
+
+  # Worker que ejecuta las tareas pesadas
+  celery_worker:
+    container_name: innotrev_celery_worker
+    build: ./backend
+    restart: always
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://innotrev_user:innotrev_password@db:5432/innotrev_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+      - backend
+    networks:
+      - innotrev-net
+
+  # Cron job que programa las tareas (ej. revisión a medianoche)
+  celery_beat:
+    container_name: innotrev_celery_beat
+    build: ./backend
+    restart: always
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://innotrev_user:innotrev_password@db:5432/innotrev_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
     networks:
       - innotrev-net
 

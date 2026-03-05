@@ -1,45 +1,41 @@
-# IDEs y Editores
-.idea/
-.vscode/
-*.swp
-*~
-
-# Archivos del Sistema
-.DS_Store
-Thumbs.db
-
-# --- Backend (Python/FastAPI) ---
-backend/.venv/
+# --- Variables de Entorno y Secretos (¡CRÍTICO: NO SUBIR!) ---
+.env
 backend/.env
+frontend/.env
+
+# --- Archivos subidos por usuarios / Evidencia ---
+# Ignora las imágenes de uploads/evidence y cualquier otra carga
+uploads/
+
+# --- Python / Backend (FastAPI) ---
+__pycache__/
 **/__pycache__/
 *.py[cod]
+*$py.class
 *.pyd
+venv/
+.venv/
+backend/.venv/
 .pytest_cache/
 alembic/versions/*.pyc
 
 # --- Frontend (Node.js) ---
 frontend/node_modules/
-frontend/.env
 frontend/dist/
 frontend/build/
+
+# --- Logs ---
 *.log
 
-# Docker
+# --- Docker ---
 .docker/
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-.pytest_cache/
-
-# Variables de entorno (¡MUY IMPORTANTE NO SUBIR ESTO!)
-.env
-
-# IDEs
-.vscode/
+# --- IDEs y Editores ---
 .idea/
+.vscode/
+*.swp
+*~
 
-# Archivos subidos por usuarios (Licencias, etc)
-uploads/
+# --- Archivos del Sistema ---
+.DS_Store
+Thumbs.db
