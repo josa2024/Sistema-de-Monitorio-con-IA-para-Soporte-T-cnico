@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, UserCircle, PackageCheck, ArrowLeft, CheckCircle, Ticket, Clock, Activity, X, User, Bot, LogOut } from 'lucide-react';
+import { ShieldCheck, UserCircle, PackageCheck, ArrowLeft, CheckCircle, Ticket, Clock, Activity, X, User, Bot, LogOut, Key, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Chatbot from './Chatbot'; 
 
 const ClientPortal = ({ onLogout, userName }) => {
   const [activeView, setActiveView] = useState('home');
-  const [formData, setFormData] = useState({ 
-    numeroSerie: '', 
-    fechaRecepcion: '', 
-    estadoEmpaque: '', 
-    confirmacionEncendido: false,
-    evidenciaFotografica: null 
-  });
+  const [formData, setFormData] = useState({ numeroSerie: '', fechaRecepcion: '', estadoEmpaque: '', confirmacionEncendido: false, evidenciaFotografica: null });
   const [isLoading, setIsLoading] = useState(false);
   const [mensaje, setMensaje] = useState(null);
+  
   const [ticketsList, setTicketsList] = useState([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  
   const [warrantiesList, setWarrantiesList] = useState([]);
   const [isLoadingWarranties, setIsLoadingWarranties] = useState(false);
+  
+  const [licensesList, setLicensesList] = useState([]); // <-- NUEVO: ESTADO PARA LICENCIAS
+  const [isLoadingLicenses, setIsLoadingLicenses] = useState(false);
+
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [ticketComments, setTicketComments] = useState([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
@@ -41,46 +41,30 @@ const ClientPortal = ({ onLogout, userName }) => {
       if (!token) throw new Error('❌ Seguridad: No tienes un token válido.');
       
       const timestamp = Date.now();
-      const resEquipos = await fetch(`http://127.0.0.1:8000/api/v1/equipo/?t=${timestamp}`, { 
-        headers: { 'Authorization': `Bearer ${token}` } 
-      });
-      
+      const resEquipos = await fetch(`http://127.0.0.1:8000/api/v1/equipo/?t=${timestamp}`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (!resEquipos.ok) throw new Error(`❌ Error al conectar con la base de datos`);
+      
       const equipos = await resEquipos.json();
       const equipoEncontrado = equipos.find(eq => eq.numero_serie === formData.numeroSerie);
-      
       if (!equipoEncontrado) throw new Error('❌ El Número de Serie ingresado no existe en tu cuenta.');
       
       const payload = new FormData();
       payload.append('estado_empaque', formData.estadoEmpaque);
       payload.append('confirmacion_encendido', formData.confirmacionEncendido);
       payload.append('fecha_recepcion', new Date(formData.fechaRecepcion).toISOString());
-
-      if (formData.evidenciaFotografica) {
-        payload.append('evidencia', formData.evidenciaFotografica);
-      }
+      if (formData.evidenciaFotografica) payload.append('evidencia', formData.evidenciaFotografica);
 
       const response = await fetch(`http://127.0.0.1:8000/api/v1/equipo/${equipoEncontrado.id}/reception?t=${timestamp}`, {
-        method: 'POST', 
-        headers: { 'Authorization': `Bearer ${token}` }, 
-        body: payload
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: payload
       });
-      
       if (!response.ok) throw new Error(`❌ Error del servidor al registrar.`);
       
       setMensaje({ tipo: 'exito', texto: '✅ ¡Recepción registrada exitosamente! Tu garantía está activa.' });
-      
       setTimeout(() => {
         setFormData({ numeroSerie: '', fechaRecepcion: '', estadoEmpaque: '', confirmacionEncendido: false, evidenciaFotografica: null });
-        setActiveView('warranties'); 
-        setMensaje(null);
+        setActiveView('warranties'); setMensaje(null);
       }, 3000);
-      
-    } catch (error) { 
-      setMensaje({ tipo: 'error', texto: error.message }); 
-    } finally { 
-      setIsLoading(false); 
-    }
+    } catch (error) { setMensaje({ tipo: 'error', texto: error.message }); } finally { setIsLoading(false); }
   };
 
   const fetchTickets = async () => {
@@ -89,7 +73,7 @@ const ClientPortal = ({ onLogout, userName }) => {
       const token = localStorage.getItem('token') || '';
       const response = await fetch(`http://127.0.0.1:8000/api/v1/tickets/?t=${Date.now()}`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (response.ok) setTicketsList(await response.json());
-    } catch (error) { console.error("Error:", error); } finally { setIsLoadingTickets(false); }
+    } catch (error) { console.error(error); } finally { setIsLoadingTickets(false); }
   };
 
   const fetchWarranties = async () => {
@@ -98,13 +82,61 @@ const ClientPortal = ({ onLogout, userName }) => {
       const token = localStorage.getItem('token') || '';
       const response = await fetch(`http://127.0.0.1:8000/api/v1/equipo/?t=${Date.now()}`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (response.ok) setWarrantiesList(await response.json());
-    } catch (error) { console.error("Error:", error); } finally { setIsLoadingWarranties(false); }
+    } catch (error) { console.error(error); } finally { setIsLoadingWarranties(false); }
+  };
+
+  // --- NUEVO: FUNCIÓN PARA OBTENER LICENCIAS ---
+  const fetchLicenses = async () => {
+    setIsLoadingLicenses(true);
+    try {
+      const token = localStorage.getItem('token') || '';
+      const headers = { 'Authorization': `Bearer ${token}` };
+      
+      // 1. Obtenemos los equipos del usuario
+      const resEq = await fetch(`http://127.0.0.1:8000/api/v1/equipo/?t=${Date.now()}`, { headers });
+      if (!resEq.ok) return;
+      const equipos = await resEq.json();
+      
+      // 2. Por cada equipo, buscamos sus licencias y las unimos
+      let allLicenses = [];
+      for (const eq of equipos) {
+        const resLic = await fetch(`http://127.0.0.1:8000/api/v1/licenses/equipo/${eq.id}`, { headers });
+        if (resLic.ok) {
+           const lics = await resLic.json();
+           allLicenses = [...allLicenses, ...lics];
+        }
+      }
+      setLicensesList(allLicenses);
+    } catch (error) { console.error(error); } finally { setIsLoadingLicenses(false); }
   };
 
   useEffect(() => {
     if (activeView === 'tickets') fetchTickets();
     if (activeView === 'warranties') fetchWarranties();
+    if (activeView === 'licenses') fetchLicenses(); // <-- NUEVO: TRIGGER LICENCIAS
   }, [activeView]);
+
+  // --- NUEVO: FUNCIÓN PARA DESCARGAR EL ARCHIVO PDF/CERTIFICADO ---
+  const handleDownloadLicense = async (licenseId, nombreSoftware) => {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`http://127.0.0.1:8000/api/v1/licenses/descargar/${licenseId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error("No hay archivo adjunto o ocurrió un error");
+        
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `Licencia_${nombreSoftware.replace(/\s+/g, '_')}.pdf`; 
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    } catch (e) {
+        alert("❌ El administrador no ha adjuntado un archivo para esta licencia.");
+    }
+  };
 
   const handleOpenTicketDetails = async (ticket) => {
     setSelectedTicket(ticket); setIsLoadingComments(true);
@@ -127,11 +159,7 @@ const ClientPortal = ({ onLogout, userName }) => {
     }
   };
 
-  const viewVariants = {
-    hidden: { opacity: 0, x: -20, filter: "blur(10px)" },
-    visible: { opacity: 1, x: 0, filter: "blur(0px)", transition: { duration: 0.4, ease: "easeOut" } },
-    exit: { opacity: 0, x: 20, filter: "blur(10px)", transition: { duration: 0.2 } }
-  };
+  const viewVariants = { hidden: { opacity: 0, x: -20, filter: "blur(10px)" }, visible: { opacity: 1, x: 0, filter: "blur(0px)", transition: { duration: 0.4, ease: "easeOut" } }, exit: { opacity: 0, x: 20, filter: "blur(10px)", transition: { duration: 0.2 } } };
 
   return (
     <div className="h-screen w-full bg-slate-100 font-sans flex flex-col overflow-hidden relative">
@@ -176,10 +204,18 @@ const ClientPortal = ({ onLogout, userName }) => {
                       <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl"><PackageCheck size={24} /></div>
                       <div><h3 className="font-bold text-lg">Registrar Recepción</h3><p className="text-xs text-blue-100 mt-1 opacity-90">Confirma la llegada física de tu equipo para activar la garantía.</p></div>
                     </motion.div>
+                    
+                    {/* NUEVO: Tarjeta para mis licencias en el home */}
+                    <motion.div whileHover={{ scale: 1.02, y: -2 }} onClick={() => setActiveView('licenses')} className="bg-white/60 backdrop-blur-xl p-5 rounded-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-start gap-4 cursor-pointer group hover:bg-white/80 transition-colors">
+                      <div className="bg-purple-100/80 p-3 rounded-xl text-purple-600"><Key size={24} /></div>
+                      <div><h3 className="font-bold text-slate-800 text-lg">Mis Licencias</h3><p className="text-xs text-slate-500 mt-1">Descarga certificados y software asignado a tu equipo.</p></div>
+                    </motion.div>
+
                     <motion.div whileHover={{ scale: 1.02, y: -2 }} onClick={() => setActiveView('tickets')} className="bg-white/60 backdrop-blur-xl p-5 rounded-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-start gap-4 cursor-pointer group hover:bg-white/80 transition-colors">
                       <div className="bg-blue-100/80 p-3 rounded-xl text-blue-600"><Ticket size={24} /></div>
                       <div><h3 className="font-bold text-slate-800 text-lg">Mis Tickets</h3><p className="text-xs text-slate-500 mt-1">Revisa el estado de tus reportes de soporte técnico.</p></div>
                     </motion.div>
+                    
                     <motion.div whileHover={{ scale: 1.02, y: -2 }} onClick={() => setActiveView('warranties')} className="bg-white/60 backdrop-blur-xl p-5 rounded-2xl border border-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-start gap-4 cursor-pointer group hover:bg-white/80 transition-colors">
                       <div className="bg-emerald-100/80 p-3 rounded-xl text-emerald-600"><ShieldCheck size={24} /></div>
                       <div><h3 className="font-bold text-slate-800 text-lg">Mis Garantías</h3><p className="text-xs text-slate-500 mt-1">Revisa el estado de protección de tus equipos.</p></div>
@@ -188,6 +224,7 @@ const ClientPortal = ({ onLogout, userName }) => {
                 </motion.div>
               )}
               
+              {/* ... Vista de Tickets y Recepción se mantienen iguales ... */}
               {activeView === 'tickets' && (
                 <motion.div key="tickets" variants={viewVariants} initial="hidden" animate="visible" exit="exit" className="bg-white/60 backdrop-blur-xl p-6 rounded-3xl shadow-xl border border-white/50 min-h-full">
                   <button onClick={() => setActiveView('home')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 text-sm font-bold transition-colors"><ArrowLeft size={16} /> Volver</button>
@@ -209,45 +246,14 @@ const ClientPortal = ({ onLogout, userName }) => {
                   <button onClick={() => setActiveView('home')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 text-sm font-bold transition-colors"><ArrowLeft size={16} /> Volver</button>
                   <h2 className="text-2xl font-black text-slate-800 mb-6">Registro de Recepción</h2>
                   {mensaje && (<div className={`p-4 rounded-xl mb-6 text-sm font-bold shadow-sm ${mensaje.tipo === 'exito' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>{mensaje.texto}</div>)}
-                  
                   <form className="space-y-5" onSubmit={handleSubmit}>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">Número de Serie</label>
-                      <input type="text" name="numeroSerie" value={formData.numeroSerie} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">Fecha de Recepción</label>
-                      <input type="date" name="fechaRecepcion" value={formData.fechaRecepcion} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">Estado del Empaque</label>
-                      <select name="estadoEmpaque" value={formData.estadoEmpaque} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm">
-                        <option value="">Selecciona...</option>
-                        <option value="Excelente">Excelente</option>
-                        <option value="Dañado">Dañado</option>
-                      </select>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2">Evidencia Fotográfica (Opcional)</label>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={handleFileChange}
-                        className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
-                      />
-                    </div>
-
-                    <div className="flex items-start gap-3 mt-6 bg-blue-50/50 backdrop-blur-sm p-4 rounded-xl border border-blue-100">
-                      <input type="checkbox" id="encendido" name="confirmacionEncendido" checked={formData.confirmacionEncendido} onChange={handleInputChange} required className="mt-1 w-5 h-5 accent-blue-600 rounded" />
-                      <label htmlFor="encendido" className="text-sm text-slate-700 cursor-pointer font-medium">Confirmo que el equipo <strong>encendió correctamente</strong> y está operativo.</label>
-                    </div>
-                    
-                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl mt-8 shadow-lg shadow-blue-500/30">
-                      {isLoading ? 'Procesando...' : 'Confirmar y Activar Garantía'}
-                    </motion.button>
+                    <div><label className="block text-sm font-bold text-slate-700 mb-2">Número de Serie</label><input type="text" name="numeroSerie" value={formData.numeroSerie} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
+                    <div><label className="block text-sm font-bold text-slate-700 mb-2">Fecha de Recepción</label><input type="date" name="fechaRecepcion" value={formData.fechaRecepcion} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm" /></div>
+                    <div><label className="block text-sm font-bold text-slate-700 mb-2">Estado del Empaque</label><select name="estadoEmpaque" value={formData.estadoEmpaque} onChange={handleInputChange} required className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"><option value="">Selecciona...</option><option value="Excelente">Excelente</option><option value="Dañado">Dañado</option></select></div>
+                    <div><label className="block text-sm font-bold text-slate-700 mb-2">Evidencia Fotográfica (Opcional)</label><input type="file" accept="image/*" onChange={handleFileChange} className="w-full bg-white/80 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" /></div>
+                    <div className="flex items-start gap-3 mt-6 bg-blue-50/50 backdrop-blur-sm p-4 rounded-xl border border-blue-100"><input type="checkbox" id="encendido" name="confirmacionEncendido" checked={formData.confirmacionEncendido} onChange={handleInputChange} required className="mt-1 w-5 h-5 accent-blue-600 rounded" /><label htmlFor="encendido" className="text-sm text-slate-700 cursor-pointer font-medium">Confirmo que el equipo <strong>encendió correctamente</strong> y está operativo.</label></div>
+                    <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl mt-8 shadow-lg shadow-blue-500/30">{isLoading ? 'Procesando...' : 'Confirmar y Activar Garantía'}</motion.button>
                   </form>
-
                 </motion.div>
               )}
 
@@ -269,6 +275,42 @@ const ClientPortal = ({ onLogout, userName }) => {
                   ) : ( <div className="text-center py-12 px-4 bg-white/40 rounded-2xl border border-dashed border-slate-300"><PackageCheck size={40} className="mx-auto text-slate-400 mb-3" /><p className="text-sm font-bold text-slate-700">Sin equipos registrados</p></div> )}
                 </motion.div>
               )}
+
+              {/* NUEVO: VISTA DE MIS LICENCIAS */}
+              {activeView === 'licenses' && (
+                <motion.div key="licenses" variants={viewVariants} initial="hidden" animate="visible" exit="exit" className="bg-white/60 backdrop-blur-xl p-6 rounded-3xl shadow-xl border border-white/50 min-h-full">
+                  <button onClick={() => setActiveView('home')} className="flex items-center gap-2 text-slate-500 hover:text-blue-600 mb-6 text-sm font-bold transition-colors"><ArrowLeft size={16} /> Volver</button>
+                  <div className="flex items-center justify-between mb-6"><div><h2 className="text-2xl font-black text-slate-800">Mis Licencias</h2></div><div className="bg-purple-100 p-2.5 rounded-xl text-purple-600 shadow-sm"><Key size={24} /></div></div>
+                  
+                  {isLoadingLicenses ? ( <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div></div> ) : licensesList.length > 0 ? (
+                    <div className="space-y-4">
+                      {licensesList.map((lic) => {
+                        return (
+                          <motion.div whileHover={{ scale: 1.02 }} key={lic.id} className="bg-white/80 border border-white rounded-2xl p-5 shadow-sm group">
+                            <div className="flex justify-between items-start mb-2"><span className="text-xs font-bold text-purple-600 uppercase bg-purple-50 px-2 py-1 rounded">{lic.tipo}</span></div>
+                            <h3 className="font-bold text-slate-800 text-sm">{lic.nombre_software}</h3>
+                            <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 font-mono text-xs text-slate-600 break-all">
+                              <span className="font-bold text-slate-400 block mb-1 font-sans">CLAVE DE PRODUCTO:</span>
+                              {lic.licencia_key || 'No requiere clave'}
+                            </div>
+                            <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                               <span className="flex items-center gap-1 font-medium text-xs text-slate-500"><Clock size={12} className="text-purple-400" /> Vence: {new Date(lic.fecha_vencimiento).toLocaleDateString()}</span>
+                               <button onClick={() => handleDownloadLicense(lic.id, lic.nombre_software)} className="text-purple-600 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors">
+                                 <Download size={14} /> Descargar Archivo
+                               </button>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  ) : ( 
+                    <div className="text-center py-12 px-4 bg-white/40 rounded-2xl border border-dashed border-slate-300">
+                      <Key size={40} className="mx-auto text-slate-400 mb-3" />
+                      <p className="text-sm font-bold text-slate-700">Sin software asignado</p>
+                    </div> 
+                  )}
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
 
@@ -277,31 +319,21 @@ const ClientPortal = ({ onLogout, userName }) => {
               <Chatbot mode="client" />
             </div>
           </div>
-
         </div>
       </main>
 
-      {/* --- MODAL DETALLE DE TICKET --- */}
+      {/* Modal Detalles del ticket (Se mantiene intacto) */}
       <AnimatePresence>
         {selectedTicket && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm rounded-2xl">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white/80 backdrop-blur-2xl w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[85%] overflow-hidden border border-white/60">
-              <div className="px-6 py-5 border-b border-white/50 flex justify-between items-center bg-white/40">
-                <div className="flex items-center gap-4"><div className="p-3 bg-blue-600 text-white rounded-xl shadow-md"><Ticket size={20} /></div><div><h2 className="font-black text-slate-800">Detalles del Reporte</h2><p className="text-xs text-blue-600 font-bold tracking-wider">TKT-{String(selectedTicket.id).padStart(4, '0')}</p></div></div>
-                <button onClick={closeTicketModal} className="text-slate-400 hover:text-slate-800 bg-white/50 hover:bg-white rounded-full p-2 transition-all shadow-sm"><X size={20} /></button>
-              </div>
+              <div className="px-6 py-5 border-b border-white/50 flex justify-between items-center bg-white/40"><div className="flex items-center gap-4"><div className="p-3 bg-blue-600 text-white rounded-xl shadow-md"><Ticket size={20} /></div><div><h2 className="font-black text-slate-800">Detalles del Reporte</h2><p className="text-xs text-blue-600 font-bold tracking-wider">TKT-{String(selectedTicket.id).padStart(4, '0')}</p></div></div><button onClick={closeTicketModal} className="text-slate-400 hover:text-slate-800 bg-white/50 hover:bg-white rounded-full p-2 transition-all shadow-sm"><X size={20} /></button></div>
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="flex gap-4 flex-row-reverse">
-                  <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center shadow-inner"><User size={20} /></div>
-                  <div className="max-w-[85%] bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl rounded-tr-none px-5 py-4 text-sm shadow-md"><p className="font-bold mb-2 pb-2 border-b border-white/20">{selectedTicket.titulo}</p><p className="whitespace-pre-wrap leading-relaxed opacity-95">{selectedTicket.descripcion}</p></div>
-                </div>
+                <div className="flex gap-4 flex-row-reverse"><div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center shadow-inner"><User size={20} /></div><div className="max-w-[85%] bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-2xl rounded-tr-none px-5 py-4 text-sm shadow-md"><p className="font-bold mb-2 pb-2 border-b border-white/20">{selectedTicket.titulo}</p><p className="whitespace-pre-wrap leading-relaxed opacity-95">{selectedTicket.descripcion}</p></div></div>
                 <div className="flex justify-center my-4"><span className={`px-4 py-2 rounded-full text-xs font-bold tracking-wide border shadow-sm flex items-center gap-2 bg-white/80 backdrop-blur-sm ${getStatusBadge(selectedTicket.status)}`}>{selectedTicket.status === 'RESUELTO' ? <CheckCircle size={14} /> : <Activity size={14} className="animate-spin-slow" />} ESTADO: {selectedTicket.status}</span></div>
                 {isLoadingComments ? ( <div className="flex justify-center py-4"><div className="animate-bounce w-2 h-2 bg-blue-400 rounded-full mx-1"></div><div className="animate-bounce w-2 h-2 bg-blue-400 rounded-full mx-1 delay-75"></div><div className="animate-bounce w-2 h-2 bg-blue-400 rounded-full mx-1 delay-150"></div></div> ) : ticketComments.length > 0 ? (
                   ticketComments.map((comment, idx) => (
-                    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} key={idx} className="flex gap-4 flex-row">
-                      <div className="flex-shrink-0 h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm border border-emerald-200"><Bot size={20} /></div>
-                      <div className="max-w-[85%] bg-white/90 border border-white text-slate-700 rounded-2xl rounded-tl-none px-5 py-4 text-sm shadow-md"><p className="text-xs font-black text-emerald-600 mb-2 uppercase tracking-wide">Técnico de Innotrev</p><p className="whitespace-pre-wrap leading-relaxed font-medium">{comment.contenido}</p><span className="text-[10px] text-slate-400 mt-3 block font-bold">{new Date(comment.fecha_creacion).toLocaleString()}</span></div>
-                    </motion.div>
+                    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} key={idx} className="flex gap-4 flex-row"><div className="flex-shrink-0 h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shadow-sm border border-emerald-200"><Bot size={20} /></div><div className="max-w-[85%] bg-white/90 border border-white text-slate-700 rounded-2xl rounded-tl-none px-5 py-4 text-sm shadow-md"><p className="text-xs font-black text-emerald-600 mb-2 uppercase tracking-wide">Técnico de Innotrev</p><p className="whitespace-pre-wrap leading-relaxed font-medium">{comment.contenido}</p><span className="text-[10px] text-slate-400 mt-3 block font-bold">{new Date(comment.fecha_creacion).toLocaleString()}</span></div></motion.div>
                   ))
                 ) : ( <p className="text-center text-xs text-slate-500 font-medium bg-white/50 py-3 rounded-xl border border-white/50">Un ingeniero responderá a tu reporte pronto.</p> )}
               </div>

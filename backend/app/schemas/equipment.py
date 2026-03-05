@@ -15,10 +15,9 @@ class EquipmentCreate(EquipmentBase):
 class EquipmentReception(BaseModel):
     """Esquema para procesar la recepción física del equipo."""
     estado_empaque: Optional[str] = None
-    confirmacion_encendido: bool = False
+    confirmacion_encendido: Optional[bool] = False # <-- Ahora es opcional
     fecha_recepcion: datetime
     ruta_evidencia: Optional[str] = None
-    ruta_evidencia: Optional[str] = None  # <-- NUEVO CAMPO AGREGADO
 
 class EquipmentUpdate(BaseModel):
     """Esquema para actualizar un equipo. Todos los campos son opcionales."""
@@ -35,9 +34,9 @@ class EquipmentResponse(EquipmentBase):
     status: str
     fecha_recepcion: Optional[datetime] = None
     estado_empaque: Optional[str] = None
-    confirmacion_encendido: bool = False
+    confirmacion_encendido: Optional[bool] = False # <-- Ahora es opcional (Evita el Error 500)
     fecha_vencimiento_garantia: Optional[datetime] = None
-    ruta_evidencia: Optional[str] = None  # <-- NUEVO CAMPO AGREGADO
+    ruta_evidencia: Optional[str] = None
 
     class Config:
         """Habilita el modo 'desde atributos' para mapear desde el modelo SQLAlchemy."""
