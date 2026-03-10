@@ -1,46 +1,40 @@
 from pydantic import BaseModel
-from datetime import date
-from typing import Literal, Optional, List, Union
+from typing import List
 
-class KpiItem(BaseModel):
-    """
-    Esquema para representar un Indicador Clave de Rendimiento individual.
-    """
-    nombre: str
-    valor: Union[int, float, str]
-    descripcion: Optional[str] = None
-    
+# --- Schemas para KPIs Avanzados ---
+
+class TopFailureItem(BaseModel):
+    """Representa un item en el top de fallas comunes."""
+    failure: str
+    count: int
+
+class StatusDistributionItem(BaseModel):
+    """Representa la distribución de un estado de equipo."""
+    status: str
+    count: int
+
+class AdvancedKpisOut(BaseModel):
+    """Schema de respuesta para los KPIs avanzados del dashboard."""
+    average_installation_time_days: float
+    top_common_failures: List[TopFailureItem]
+    equipment_status_distribution: List[StatusDistributionItem]
+
+    class Config:
+        # Permite que Pydantic lea los datos desde modelos de SQLAlchemy
+        from_attributes = True
+
+# --- Schemas para Datos Históricos ---
+
+class TimeSeriesItem(BaseModel):
+    """Representa un punto de datos en una serie de tiempo."""
+    date: str  # Formato "YYYY-MM" para meses, "YYYY-MM-DD" para días
+    count: int
+
+class HistoricalDataOut(BaseModel):
+    """Schema de respuesta para los datos históricos del dashboard."""
+    tickets_created_by_month: List[TimeSeriesItem]
+    equipment_installed_last_30_days: List[TimeSeriesItem]
+
     class Config:
         from_attributes = True
 
-class DashboardKpisOut(BaseModel):
-    """
-    Esquema de salida que agrupa los KPIs generales solicitados por el servicio.
-    """
-    kpis: List[KpiItem]
-
-
-# --- TUS ESQUEMAS ACTUALES PARA EL SISTEMA DE MONITOREO ---
-
-class ExpirationAlert(BaseModel):
-    """
-    Modelo unificado para mostrar alertas de vencimiento en el Dashboard.
-    Normaliza datos tanto de Hardware (Garantías) como de Software (Licencias).
-    """
-    id: int
-    tipo: Literal['HARDWARE', 'SOFTWARE']
-    nombre: str
-    referencia: Optional[str] = None
-    fecha_vencimiento: date
-    dias_restantes: int
-    prioridad: Literal['CRITICA', 'ALERTA', 'NORMAL']
-
-class DashboardStatsOut(BaseModel):
-    """
-    Esquema para el resumen de estadísticas del Dashboard Administrativo.
-    """
-    total_equipos: int
-    equipos_instalados: int
-    equipos_en_transito: int
-    tickets_abiertos: int
-    alertas_vencimiento: List[ExpirationAlert]

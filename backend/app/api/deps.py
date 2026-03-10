@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import Generator, List
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -7,11 +7,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.models.user_models import User
-from app.models.roles import RoleEnum
+from app.models.roles import Role, RoleEnum
 
-# CORRECCIÓN 1: Apuntamos exactamente a la ruta real de tu endpoint de login.
-# Si tu main.py agrupa todo bajo un prefijo (ej. "/api/v1"), la ruta debe ser "/api/v1/auth/login/access-token"
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login/access-token") 
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login/access-token")
 
 
 def get_db() -> Generator:
@@ -35,7 +34,6 @@ def get_current_user(
     try:
         payload = jwt.decode(token, settings.SECRET_KEY,
                              algorithms=[settings.ALGORITHM])
-        # Aquí estamos esperando el email en el 'sub' del token
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -47,12 +45,38 @@ def get_current_user(
         raise credentials_exception
     return user
 
+
 def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     """Verifica que el usuario actual esté activo."""
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
+
+class RoleChecker:
+    """
+    Clase de dependencia que verifica si el usuario actual tiene uno de los roles permitidos.
+    """
+    def __init__(self, allowed_roles: List[RoleEnum]):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, user: User = Depends(get_current_active_user)):
+        if user.role.nombre not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="The user does not have enough privileges"
+            )
+        return user
+
+# Dependencias específicas para roles para mayor legibilidad en los endpoints
+require_admin = RoleChecker([RoleEnum.ADMIN])
+require_tecnico = RoleChecker([RoleEnum.TECNICO])
+require_cliente = RoleChecker([RoleEnum.CLIENTE])
+require_admin_or_tecnico = RoleChecker([RoleEnum.ADMIN, RoleEnum.TECNICO])
+
+
+
+# Funciones de dependencia "legacy" - se pueden ir reemplazando por el RoleChecker
 def get_current_admin_user(
     current_user: User = Depends(get_current_active_user),
 ) -> User:

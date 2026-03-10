@@ -3,32 +3,61 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api import deps
+# Importamos la dependencia de seguridad específica
+from app.api.deps import get_db, require_admin_or_tecnico
 from app.models.user_models import User
-from app.schemas.dashboard import DashboardStatsOut
-# 1. Importamos la Clase (con mayúsculas) en lugar de la instancia
+# Importamos los schemas para una respuesta bien definida y el servicio
+from app.schemas import dashboard as dashboard_schema
 from app.services.dashboard_service import DashboardService
 
 router = APIRouter()
 
-@router.get("/stats", response_model=DashboardStatsOut)
-def get_dashboard_stats(
+
+@router.get(
+    "/kpis-avanzados",
+    response_model=dashboard_schema.AdvancedKpisOut,
+    summary="Obtener KPIs Avanzados del Dashboard",
+    description="Retorna métricas clave como el tiempo promedio de instalación y las fallas más comunes. El acceso está restringido a Técnicos y Administradores. La respuesta se cachea por 10 minutos."
+)
+def get_advanced_kpis(
     *,
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_active_user),
-    # 2. Inyectamos el servicio utilizando Depends()
-    service: DashboardService = Depends(),
+    db: Session = Depends(get_db),
+    # Esta dependencia asegura que el usuario tenga el rol de ADMIN o TECNICO
+    current_user: User = Depends(require_admin_or_tecnico),
+    service: DashboardService = Depends(DashboardService),
 ) -> Any:
     """
-    Obtiene estadísticas agregadas para el Dashboard Administrativo.
-    Realiza consultas optimizadas para no cargar objetos en memoria.
+    Endpoint para obtener los KPIs avanzados.
     """
     try:
-        # 3. Usamos la instancia inyectada para llamar al método
-        return service.get_stats(db=db)
+        return service.get_advanced_kpis(db=db)
     except Exception as e:
-        # En una aplicación real, aquí se registraría el error 'e' en un log.
+        # Aquí se registraría el error 'e' en un sistema de logging (Sentry, etc.)
         raise HTTPException(
             status_code=500,
-            detail="Ocurrió un error al procesar las estadísticas del dashboard."
+            detail=f"Ocurrió un error al procesar los KPIs: {e}"
+        )
+
+
+@router.get(
+    "/historicos",
+    response_model=dashboard_schema.HistoricalDataOut,
+    summary="Obtener Datos Históricos para Gráficos",
+    description="Retorna series de tiempo como el volumen de tickets mensuales y equipos instalados recientemente. El acceso está restringido a Técnicos y Administradores."
+)
+def get_historical_data(
+    *,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_or_tecnico),
+    service: DashboardService = Depends(DashboardService),
+) -> Any:
+    """
+    Endpoint para obtener datos históricos y series de tiempo.
+    """
+    try:
+        return service.get_historical_data(db=db)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ocurrió un error al procesar los datos históricos: {e}"
         )

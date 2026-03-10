@@ -39,3 +39,15 @@ frontend/build/
 # --- Archivos del Sistema ---
 .DS_Store
 Thumbs.db
+
+# --- Celery ---
+# Archivo de base de datos temporal de Celery Beat
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir
+
+# --- Bases de Datos Locales (opcional si usas SQLite para pruebas) ---
+*.sqlite3
+*.db

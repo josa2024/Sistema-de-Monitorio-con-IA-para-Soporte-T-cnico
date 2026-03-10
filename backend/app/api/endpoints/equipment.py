@@ -1,143 +1,136 @@
-from typing import Any, List, Optional
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Body
 from sqlalchemy.orm import Session
+import datetime
 
-from app.api import deps
-from app.models.equipment_models import Equipo
+# Importaciones del proyecto
+from app.core.database import get_db
+from app.api.deps import get_current_user
 from app.models.user_models import User
-from app.schemas.equipment import EquipmentCreate, EquipmentUpdate, EquipmentResponse
-from app.schemas.installation import InstallationReportCreate
-from app.services.inv_service import InventoryService
+from app.models.roles import RoleEnum
+from app.services.equipment_service import EquipmentService
+from app.schemas.equipment import (
+    EquipmentResponse,
+    EquipmentCreate,
+    EquipmentUpdate,
+    EquipmentReception
+)
 
 router = APIRouter()
-inventory_service = InventoryService()
+equipment_service = EquipmentService()
 
-@router.post("/", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=EquipmentResponse,
+    summary="Crear un nuevo equipo",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(get_current_user)] # Proteger endpoint
+)
 def create_equipment(
-    *,
-    db: Session = Depends(deps.get_db),
     equipment_in: EquipmentCreate,
-    current_user: User = Depends(deps.get_current_active_user),
-) -> Any:
+    db: Session = Depends(get_db)
+):
     """
-    Registra un nuevo equipo en el sistema (Admin/Ventas).
-    Estado inicial por defecto: EN_TRANSITO.
-    """
-    # Aquí podríamos validar si el usuario tiene rol de ADMIN o VENTAS
-    return inventory_service.register_new_equipment(db=db, equipment_data=equipment_in)
+    Endpoint para registrar un nuevo equipo en el inventario.
 
-@router.get("/", response_model=List[EquipmentResponse])
-def read_equipments(
-    db: Session = Depends(deps.get_db),
-    skip: int = 0,
-    limit: int = 100,
-    cliente_id: Optional[int] = None,
-    estado: Optional[str] = None,
-    numero_serie: Optional[str] = None,
-    current_user: User = Depends(deps.get_current_active_user),
-) -> Any:
+    - **Acceso:** Protegido para usuarios autenticados.
+    - **Validación:** El servicio verifica que el número de serie no esté duplicado.
     """
-    Lista todos los equipos con filtros opcionales.
-    """
-    query = db.query(Equipo)
-    if cliente_id:
-        query = query.filter(Equipo.cliente_id == cliente_id)
-    if estado:
-        query = query.filter(Equipo.estado == estado)
-    if numero_serie:
-        query = query.filter(Equipo.numero_serie == numero_serie)
-    
-    return query.offset(skip).limit(limit).all()
+    return equipment_service.create_equipment(db=db, equipment_data=equipment_in)
 
-@router.get("/my-equipment", response_model=List[EquipmentResponse])
-def read_my_equipment(
-    db: Session = Depends(deps.get_db),
-    current_user: User = Depends(deps.get_current_active_user),
-) -> Any:
-    """
-    HU-01: Obtiene únicamente los equipos asignados al cliente autenticado.
-    """
-    return db.query(Equipo).filter(Equipo.cliente_id == current_user.id).all()
-
-@router.get("/{equipment_id}", response_model=EquipmentResponse)
-def read_equipment(
-    *,
-    db: Session = Depends(deps.get_db),
-    equipment_id: int,
-    current_user: User = Depends(deps.get_current_active_user),
-) -> Any:
-    """
-    Obtiene el detalle de un equipo por ID.
-    """
-    equipment = db.query(Equipo).filter(Equipo.id == equipment_id).first()
-    if not equipment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Equipo no encontrado"
-        )
-    return equipment
-
-@router.put("/{equipment_id}", response_model=EquipmentResponse)
+@router.put(
+    "/{id}",
+    response_model=EquipmentResponse,
+    summary="Actualizar un equipo existente",
+    dependencies=[Depends(get_current_user)]
+)
 def update_equipment(
-    *,
-    db: Session = Depends(deps.get_db),
-    equipment_id: int,
+    id: int,
     equipment_in: EquipmentUpdate,
-    current_user: User = Depends(deps.get_current_active_user),
-) -> Any:
+    db: Session = Depends(get_db)
+):
     """
-    Actualiza datos de un equipo existente.
+    Endpoint para actualizar la información de un equipo por su ID.
+
+    - **Acceso:** Protegido para usuarios autenticados.
+    - **Validación:** El servicio verifica la unicidad del número de serie si se cambia.
     """
-    equipment = db.query(Equipo).filter(Equipo.id == equipment_id).first()
-    if not equipment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Equipo no encontrado"
-        )
-    
-    update_data = equipment_in.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(equipment, field, value)
+    return equipment_service.update_equipment(db=db, equipment_id=id, equipment_update=equipment_in)
 
-    db.add(equipment)
-    db.commit()
-    db.refresh(equipment)
-    return equipment
+@router.get(
+    "/{id}",
+    response_model=EquipmentResponse,
+    summary="Obtener un equipo por ID",
+    dependencies=[Depends(get_current_user)]
+)
+def get_equipment(id: int, db: Session = Depends(get_db)):
+    """
+    Endpoint para obtener los detalles de un equipo específico.
+    """
+    return equipment_service.get_equipment_by_id(db=db, equipment_id=id)
 
-@router.post("/{equipment_id}/installation", response_model=Any)
-def register_installation(
-    *,
-    db: Session = Depends(deps.get_db),
-    equipment_id: int,
-    fecha_recepcion: datetime = Form(...),
+@router.get(
+    "/",
+    response_model=list[EquipmentResponse], # Actualizado a la sintaxis moderna de Python
+    summary="Listar todos los equipos",
+    dependencies=[Depends(get_current_user)]
+)
+def list_equipments(
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100
+):
+    """
+    Endpoint para obtener una lista paginada de todos los equipos.
+    """
+    return equipment_service.get_all_equipments(db=db, skip=skip, limit=limit)
+
+@router.post(
+    "/{id}/reception",
+    response_model=EquipmentResponse,
+    summary="Registrar recepción de equipo por parte del cliente (HU-01)",
+    status_code=status.HTTP_200_OK,
+)
+def register_equipment_reception(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    observaciones: str | None = Form(None),
+    fecha_recepcion: datetime.datetime = Form(...),
     estado_empaque: str = Form(...),
     encendio_correctamente: bool = Form(...),
-    observaciones: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None),
-    current_user: User = Depends(deps.get_current_active_user),
-) -> Any:
+    file: UploadFile | None = File(None, description="Archivo de evidencia fotográfica (opcional).") # Actualizado a pipe operator
+):
     """
-    HU-01: Endpoint para registrar la instalación manual del equipo.
-    Recibe datos del formulario y una imagen opcional.
-    """
-    # Validamos que el usuario tenga permisos si es necesario (ej. solo CLIENTE)
-    # if current_user.role.nombre != "CLIENTE": ...
+    Endpoint para que un **cliente** registre la recepción de un equipo.
 
-    # Convertimos los datos del Form a nuestro esquema Pydantic
-    # Esto es necesario porque InventoryService espera un objeto InstallationReportCreate
-    report_data = InstallationReportCreate(
+    - **Acceso:** Solo para usuarios con rol `CLIENTE`.
+    """
+    if not current_user.role or current_user.role.nombre != RoleEnum.CLIENTE.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado: Esta acción solo es permitida para clientes.",
+        )
+        
+    if file and file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de archivo no válido. Solo se permiten imágenes (JPEG, PNG, WEBP)."
+        )
+
+    # Creamos el objeto Pydantic a partir de los datos del formulario
+    reception_data = EquipmentReception(
         fecha_recepcion=fecha_recepcion,
         estado_empaque=estado_empaque,
         encendio_correctamente=encendio_correctamente,
         observaciones=observaciones
     )
 
-    equipment = inventory_service.register_installation(
+    # El servicio se encarga de toda la lógica de negocio
+    updated_equipment = equipment_service.process_equipment_reception(
         db=db,
-        equipment_id=equipment_id,
-        report_data=report_data,
-        file=file
+        equipment_id=id,
+        reception_data=reception_data,
+        current_user=current_user,
+        file=file,
     )
-    return equipment
+    return updated_equipment

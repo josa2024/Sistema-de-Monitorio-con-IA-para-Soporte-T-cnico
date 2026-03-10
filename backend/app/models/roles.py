@@ -17,5 +17,5 @@ class Role(Base):
     nombre = Column(String, unique=True, index=True)
     descripcion = Column(String, nullable=True)
 
-    # ✅ CORRECCIÓN: Usamos la ruta absoluta del módulo apuntando hacia User
+    # Relación con ruta absoluta para evitar importaciones circulares
     users = relationship("app.models.user_models.User", back_populates="role")
