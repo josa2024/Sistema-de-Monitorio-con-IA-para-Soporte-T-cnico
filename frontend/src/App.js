@@ -6,12 +6,15 @@ import Dashboard from './components/Dashboard';
 import ClientPortal from './components/ClientPortal';
 import Inventario from './components/Inventario'; 
 import Garantias from './components/Garantias';
+import PublicWeb from './components/PublicWeb';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
   const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || null);
   const [userName, setUserName] = useState(localStorage.getItem('userName') || 'Cliente');
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  const [publicView, setPublicView] = useState('web');
 
   const handleLoginSuccess = (token, role, nombre) => {
     localStorage.setItem('token', token);
@@ -30,13 +33,27 @@ function App() {
     setIsAuthenticated(false);
     setUserRole(null);
     setUserName('');
+    setPublicView('web');
   };
 
   if (!isAuthenticated) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
+    if (publicView === 'login') {
+      return (
+        <div className="relative h-screen bg-slate-50">
+          <button 
+            onClick={() => setPublicView('web')} 
+            className="absolute top-6 left-6 z-50 text-slate-500 hover:text-blue-600 font-medium flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm"
+          >
+            ← Volver a Innotrev
+          </button>
+          <Login onLoginSuccess={handleLoginSuccess} />
+        </div>
+      );
+    }
+    // Mostramos el clon de Innotrev por defecto
+    return <PublicWeb onLoginClick={() => setPublicView('login')} />;
   }
 
-  // PORTAL DEL CLIENTE
   if (userRole === 'CLIENTE') {
     return <ClientPortal onLogout={handleLogout} userName={userName} />;
   }
