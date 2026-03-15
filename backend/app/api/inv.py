@@ -4,8 +4,9 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from app.api.deps import get_db, get_current_user
 from app.models.user_models import User
-from app.schemas.equipment import EquipmentResponse, EquipmentCreate
+from app.schemas.equipment import EquipmentResponse, EquipmentCreate, EquipmentSolicitar, EquipmentValidar
 from app.services.inv_service import InventoryService
+import uuid
 
 router = APIRouter()
 
@@ -64,4 +65,46 @@ def confirmar_recepcion(
     db.commit()
     db.refresh(equipo)
     
+    return equipo
+
+@router.post("/solicitar", response_model=EquipmentResponse)
+def solicitar_equipo(solicitud: EquipmentSolicitar, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Generamos un Número de Serie temporal hasta que el Admin lo valide
+    temp_sn = f"REQ-{uuid.uuid4().hex[:6].upper()}"
+    nuevo_equipo = Equipo(
+        modelo=solicitud.modelo,
+        numero_serie=temp_sn,
+        cliente_id=current_user.id,
+        status="SOLICITADO"
+    )
+    db.add(nuevo_equipo)
+    db.commit()
+    db.refresh(nuevo_equipo)
+    return nuevo_equipo
+
+@router.patch("/{equipo_id}/validar", response_model=EquipmentResponse)
+def validar_venta(equipo_id: int, datos: EquipmentValidar, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role.nombre not in ["ADMIN", "VENTAS"]: 
+        raise HTTPException(status_code=403, detail="Sin permisos")
+    
+    equipo = db.query(Equipo).filter(Equipo.id == equipo_id).first()
+    if not equipo: 
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+        
+    equipo.numero_serie = datos.numero_serie
+    equipo.status = "PENDIENTE_PAGO"
+    db.commit()
+    db.refresh(equipo)
+    return equipo
+
+@router.patch("/{equipo_id}/pagar", response_model=EquipmentResponse)
+def pagar_equipo(equipo_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    equipo = db.query(Equipo).filter(Equipo.id == equipo_id).first()
+    if not equipo or equipo.cliente_id != current_user.id: 
+        raise HTTPException(status_code=404, detail="No encontrado")
+        
+    equipo.status = "EN_TRANSITO"
+    equipo.fecha_salida_sucursal = datetime.utcnow()
+    db.commit()
+    db.refresh(equipo)
     return equipo

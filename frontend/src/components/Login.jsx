@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, MapPin, Phone, Eye, EyeOff, ShieldCheck, X, ArrowRight } from 'lucide-react';
+import { Mail, Lock, User, MapPin, Phone, Eye, EyeOff, ShieldCheck, X, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const Login = ({ onLoginSuccess, onClose }) => {

@@ -52,3 +52,10 @@ class LogResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class EquipmentSolicitar(BaseModel):
+    modelo: str
+
+class EquipmentValidar(BaseModel):
+    numero_serie: str

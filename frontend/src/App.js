@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Package, ShieldCheck, UserCircle, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, ShieldCheck, UserCircle, LogOut, Users } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import Inventario from './components/Inventario';
 import Garantias from './components/Garantias';
+import HistorialUsuarios from './components/HistorialUsuarios'; 
 import InnotrevWeb from './components/InnotrevWeb'; 
 
 function App() {
@@ -30,7 +31,6 @@ function App() {
     setUserName('');
   };
 
-  // 1. ES UN VISITANTE PÚBLICO O ES UN CLIENTE LOGUEADO
   if (!isAuthenticated || userRole === 'CLIENTE') {
     return (
       <InnotrevWeb 
@@ -42,7 +42,6 @@ function App() {
     );
   }
 
-  // 2. ES UN ADMINISTRADOR -> Mostrar Dashboard Privado
   return (
     <div className="flex h-screen bg-[#f8fafc] font-sans overflow-hidden">
       <aside className="w-[280px] bg-[#070d24] text-slate-400 flex flex-col shadow-2xl z-20 border-r border-slate-800/50">
@@ -59,6 +58,11 @@ function App() {
           
           <button onClick={() => setActiveTab('inventario')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-sm font-bold ${activeTab === 'inventario' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-[1.02]' : 'hover:bg-white/5 hover:text-slate-200'}`}>
             <Package size={20} className={activeTab === 'inventario' ? 'text-white' : 'text-slate-500'} /> Gestión de Inventario
+          </button>
+
+          {/* NUEVO BOTÓN: Historial de Usuarios */}
+          <button onClick={() => setActiveTab('historial')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-sm font-bold ${activeTab === 'historial' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-[1.02]' : 'hover:bg-white/5 hover:text-slate-200'}`}>
+            <Users size={20} className={activeTab === 'historial' ? 'text-white' : 'text-slate-500'} /> Historial y Seguimiento
           </button>
           
           <button onClick={() => setActiveTab('garantias')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-sm font-bold ${activeTab === 'garantias' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-[1.02]' : 'hover:bg-white/5 hover:text-slate-200'}`}>
@@ -82,6 +86,7 @@ function App() {
       <main className="flex-1 overflow-y-auto bg-[#f8fafc] relative custom-scrollbar">
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'inventario' && <Inventario />}
+        {activeTab === 'historial' && <HistorialUsuarios />} {/* NUEVA RUTA */}
         {activeTab === 'garantias' && <Garantias />}
       </main>
     </div>

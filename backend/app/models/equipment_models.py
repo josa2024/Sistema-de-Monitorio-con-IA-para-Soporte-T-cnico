@@ -17,10 +17,13 @@ from app.models.user_models import User
 
 
 class StatusEquipo(enum.Enum):
-    EN_TRANSITO = "EN_TRANSITO"
+    SOLICITADO = "SOLICITADO"             # Cliente lo pide
+    PENDIENTE_PAGO = "PENDIENTE_PAGO"     # Admin asignó S/N
+    EN_TRANSITO = "EN_TRANSITO"           # Cliente pagó
     RECIBIDO = "RECIBIDO"
-    INSTALADO = "INSTALADO"
-
+    INSTALADO = "INSTALADO"               # Cliente validó llegada
+    FALLA_REPORTADA = "FALLA_REPORTADA"
+    MANTENIMIENTO = "MANTENIMIENTO"
 
 class TipoGarantia(enum.Enum):
     HARDWARE = "HARDWARE"
