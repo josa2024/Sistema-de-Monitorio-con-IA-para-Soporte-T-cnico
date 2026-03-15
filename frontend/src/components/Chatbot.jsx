@@ -1,29 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, ShieldAlert, User, Ticket } from 'lucide-react';
+import { Send, Bot, ShieldAlert, User, Ticket, Sparkles, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const Chatbot = ({ mode = 'admin' }) => {
+const Chatbot = ({ mode = 'admin', isAuthenticated, onAuthRequest }) => {
   const [messages, setMessages] = useState([
-    { role: 'bot', text: mode === 'admin' ? 'Sistemas en línea. Soy la IA de soporte técnico de Innotrev.' : 'Hola, soy el asistente virtual de Innotrev. ¿En qué puedo ayudarte hoy con tu equipo?' }
+    { 
+      role: 'bot', 
+      text: mode === 'admin' 
+        ? 'Sistemas en línea. Soy la IA de diagnóstico técnico de Innotrev.' 
+        : 'Hola. Soy el agente de IA de Innotrev. Estoy aquí para resolver problemas con tus equipos Zebra, Honeywell o infraestructura RFID. ¿En qué te ayudo?' 
+    }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [priority, setPriority] = useState(null);
   const [showTicketButton, setShowTicketButton] = useState(false);
   const [lastUserIssue, setLastUserIssue] = useState('');
-  
-  // AQUÍ ESTÁ LA VARIABLE FALTANTE:
   const [category, setCategory] = useState('General / Otro'); 
 
   const messagesEndRef = useRef(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading, showTicketButton]);
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  useEffect(() => { scrollToBottom(); }, [messages, loading, showTicketButton]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -34,249 +31,196 @@ const Chatbot = ({ mode = 'admin' }) => {
     setInput('');
     setLoading(true);
     setPriority(null);
-    setCategory('General / Otro'); // Reiniciamos la categoría por defecto
+    setCategory('General / Otro'); 
     setShowTicketButton(false);
 
     try {
       const token = localStorage.getItem('token') || ''; 
       const response = await fetch('http://127.0.0.1:8000/api/v1/ai/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ message: userMsg.text })
       });
 
       if (!response.ok) throw new Error('Error en el servidor');
       const data = await response.json();
       
-      // Capturamos la prioridad
       if (data.priority) {
         setPriority(data.priority);
-        if (mode === 'client' && (data.priority === 'ALTA' || data.priority === 'CRITICA')) {
+        if (mode === 'cliente' && (data.priority === 'ALTA' || data.priority === 'CRITICA')) {
           setShowTicketButton(true);
         }
       }
-
-      // Capturamos la categoría que extrajo la IA
-      if (data.category) {
-        setCategory(data.category);
-      }
+      if (data.category) setCategory(data.category);
       
-      const botMsg = { role: 'bot', text: data.response };
-      setMessages((prev) => [...prev, botMsg]);
-
+      setMessages((prev) => [...prev, { role: 'bot', text: data.response }]);
     } catch (error) {
-      console.error(error);
-      setMessages((prev) => [...prev, { role: 'bot', text: '❌ Error de conexión con el cerebro de Llama 3.2. Verifica que Ollama esté corriendo.' }]);
-    } finally {
-      setLoading(false);
-    }
+      setMessages((prev) => [...prev, { role: 'bot', text: '❌ No se pudo establecer conexión con el cerebro de procesamiento.' }]);
+    } finally { setLoading(false); }
   };
 
   const handleCreateTicket = async () => {
+    if (!isAuthenticated && onAuthRequest) {
+      onAuthRequest();
+      return;
+    }
+
     setLoading(true);
     setShowTicketButton(false);
 
     try {
       const token = localStorage.getItem('token') || ''; 
-      
-      const eqResponse = await fetch('http://127.0.0.1:8000/api/v1/equipo/', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const eqResponse = await fetch('http://127.0.0.1:8000/api/v1/equipo/', { headers: { 'Authorization': `Bearer ${token}` } });
       const equipos = await eqResponse.json();
 
       if (!equipos || equipos.length === 0) {
-         setMessages((prev) => [...prev, { role: 'bot', text: '❌ No tienes equipos vinculados a tu cuenta para reportar fallas. Contacta a Innotrev.' }]);
-         setLoading(false);
-         return;
+         setMessages((prev) => [...prev, { role: 'bot', text: '❌ No tienes equipos activos en tu cuenta para vincular este reporte.' }]);
+         setLoading(false); return;
       }
-
-      const equipoAsignadoId = equipos[0].id; 
 
       const ticketData = {
         titulo: "Reporte automático vía IA",
-        descripcion: `Falla reportada por el usuario: "${lastUserIssue}". \nDiagnóstico previo IA: ${priority}`,
-        equipo_id: equipoAsignadoId,
-        categoria: category // ¡Ahora sí existe y se envía al backend!
+        descripcion: `Reporte Original: "${lastUserIssue}". \nDiagnóstico IA: ${priority}`,
+        equipo_id: equipos[0].id,
+        categoria: category 
       };
 
       const response = await fetch('http://127.0.0.1:8000/api/v1/tickets/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(ticketData)
       });
 
       if (response.ok) {
-        setMessages((prev) => [...prev, { 
-          role: 'bot', 
-          text: '✅ He generado un ticket de soporte técnico (Prioridad: Alta) con los detalles de tu problema. Un ingeniero de Innotrev lo está revisando en este momento.' 
-        }]);
-      } else {
-        throw new Error("No se pudo crear");
-      }
+        setMessages((prev) => [...prev, { role: 'bot', text: '✅ He generado un ticket oficial con Prioridad Alta. Nuestro equipo de soporte ya fue notificado y se comunicará contigo a la brevedad. Puedes ver el estado en tu pestaña "Mis Tickets".' }]);
+      } else { throw new Error("No se pudo crear"); }
     } catch (error) {
-      setMessages((prev) => [...prev, { role: 'bot', text: '❌ Hubo un error al intentar crear el ticket en nuestro sistema.' }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const bubbleVariants = {
-    hidden: { opacity: 0, y: 15, scale: 0.95 },
-    visible: { 
-      opacity: 1, 
-      y: 0, 
-      scale: 1,
-      transition: { type: "spring", damping: 22, stiffness: 300 }
-    }
+      setMessages((prev) => [...prev, { role: 'bot', text: '❌ Ocurrió un error al intentar registrar el ticket en tu cuenta.' }]);
+    } finally { setLoading(false); }
   };
 
   const typingDotVariants = {
-    initial: { y: 0 },
-    animate: { y: -4, transition: { duration: 0.4, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" } }
+    initial: { y: 0, opacity: 0.5 },
+    animate: { y: -3, opacity: 1, transition: { duration: 0.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" } }
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden relative">
+    <div className="flex flex-col h-full bg-[#f8fafc] relative">
       
-      <div className={`px-6 py-4 border-b border-slate-200 flex items-center justify-between z-10 ${
-        mode === 'admin' ? 'bg-slate-50/90 backdrop-blur-md' : 'bg-gradient-to-r from-blue-600 to-blue-700'
-      }`}>
-        <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-xl shadow-sm ${mode === 'admin' ? 'bg-blue-600 text-white' : 'bg-white/20 text-white backdrop-blur-sm'}`}>
-            <Bot size={22} />
+      {/* HEADER PREMIUM */}
+      <div className="bg-[#0b1437] text-white px-6 py-4 flex items-center justify-between shrink-0 shadow-md z-10">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-inner border border-white/10">
+              <Bot size={24} className="text-white" />
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#0b1437] rounded-full animate-pulse"></div>
           </div>
           <div>
-            <h2 className={`font-bold text-lg leading-tight tracking-wide ${mode === 'admin' ? 'text-slate-800' : 'text-white'}`}>
-              {mode === 'admin' ? 'Terminal de Diagnóstico IA' : 'Asistente Virtual Innotrev'}
+            <h2 className="font-black text-lg tracking-wide flex items-center gap-2">
+              Innotrev AI <Sparkles size={16} className="text-blue-300" />
             </h2>
-            <div className={`flex items-center gap-2 text-xs mt-0.5 font-medium ${mode === 'admin' ? 'text-slate-500' : 'text-blue-100'}`}>
-              <span className="relative flex h-2 w-2">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${mode === 'admin' ? 'bg-emerald-400' : 'bg-white'}`}></span>
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${mode === 'admin' ? 'bg-emerald-500' : 'bg-white'}`}></span>
-              </span>
-              {mode === 'admin' ? 'Llama 3.2 Activo' : 'En línea - Respuestas instantáneas'}
-            </div>
+            <p className="text-blue-200/80 text-xs font-medium">Asistente de Nivel 0 • Respuestas inmediatas</p>
           </div>
         </div>
       </div>
 
+      {/* NOTIFICACIÓN ADMIN (Si aplica) */}
       <AnimatePresence>
         {mode === 'admin' && priority === 'ALTA' && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="bg-red-50 border-b border-red-100 px-6 py-3 flex items-start gap-3 overflow-hidden"
-          >
-            <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
-              <ShieldAlert className="text-red-600 mt-0.5" size={20} />
-            </motion.div>
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-red-500 text-white px-6 py-3 flex items-center gap-3 shadow-inner">
+            <ShieldAlert size={20} className="animate-bounce" />
             <div>
-              <p className="font-bold text-red-700 text-sm tracking-wide">NIVEL DE PRIORIDAD: CRÍTICA</p>
-              <p className="text-red-600 text-xs mt-0.5 font-medium">La IA ha detectado una anomalía severa que requiere atención humana.</p>
+               <p className="font-black text-xs uppercase tracking-widest">Nivel de Prioridad Crítica</p>
+               <p className="text-xs font-medium opacity-90">Anomalía detectada. Se requiere intervención humana.</p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="flex-1 p-6 overflow-y-auto bg-slate-50 space-y-5 scroll-smooth relative">
+      {/* ÁREA DE CHAT */}
+      <div className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar relative">
         <AnimatePresence>
           {messages.map((msg, index) => (
-            <motion.div 
-              key={index} 
-              variants={bubbleVariants}
-              initial="hidden"
-              animate="visible"
-              layout
-              className={`flex gap-3 items-end ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-            >
-              <div className={`flex-shrink-0 h-8 w-8 rounded-full flex items-center justify-center shadow-sm z-10 ${
-                msg.role === 'user' ? 'bg-slate-200 text-slate-600' : 'bg-blue-100 text-blue-600'
-              }`}>
-                {msg.role === 'user' ? <User size={15} /> : <Bot size={15} />}
-              </div>
-              <div className={`max-w-[80%] px-5 py-3.5 text-[15px] shadow-sm relative ${
+            <motion.div key={index} initial={{ opacity: 0, y: 15, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} layout className={`flex gap-3 items-end ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              
+              {/* Avatar Bot */}
+              {msg.role === 'bot' && (
+                <div className="w-8 h-8 bg-[#0b1437] rounded-full flex items-center justify-center shadow-sm shrink-0 border border-slate-200">
+                  <Bot size={14} className="text-white" />
+                </div>
+              )}
+
+              {/* Burbuja de Mensaje */}
+              <div className={`px-5 py-3.5 text-[15px] shadow-sm max-w-[85%] sm:max-w-[75%] ${
                 msg.role === 'user' 
-                ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm' 
-                : 'bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-bl-sm'
+                ? 'bg-blue-600 text-white rounded-[20px] rounded-br-sm font-medium' 
+                : 'bg-white border border-slate-200/60 text-slate-700 rounded-[20px] rounded-bl-sm font-normal leading-relaxed'
               }`}>
-                <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                <p className="whitespace-pre-wrap">{msg.text}</p>
               </div>
             </motion.div>
           ))}
         </AnimatePresence>
 
+        {/* Indicador de "Escribiendo..." */}
         <AnimatePresence>
           {loading && (
-            <motion.div 
-              initial={{ opacity: 0, y: 10, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex gap-3 items-end flex-row"
-            >
-              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-sm">
-                <Bot size={15} />
-              </div>
-              <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-4 shadow-sm flex items-center gap-1.5 h-[46px]">
-                <motion.span variants={typingDotVariants} initial="initial" animate="animate" className="w-1.5 h-1.5 bg-slate-400 rounded-full block"></motion.span>
-                <motion.span variants={typingDotVariants} initial="initial" animate="animate" transition={{ delay: 0.15 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full block"></motion.span>
-                <motion.span variants={typingDotVariants} initial="initial" animate="animate" transition={{ delay: 0.3 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full block"></motion.span>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="flex gap-3 items-end">
+              <div className="w-8 h-8 bg-[#0b1437] rounded-full flex items-center justify-center shadow-sm shrink-0"><Bot size={14} className="text-white" /></div>
+              <div className="bg-white border border-slate-200/60 rounded-[20px] rounded-bl-sm px-5 py-4 shadow-sm flex items-center gap-1.5 h-[48px]">
+                <motion.span variants={typingDotVariants} initial="initial" animate="animate" className="w-1.5 h-1.5 bg-slate-400 rounded-full"></motion.span>
+                <motion.span variants={typingDotVariants} initial="initial" animate="animate" transition={{ delay: 0.2 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full"></motion.span>
+                <motion.span variants={typingDotVariants} initial="initial" animate="animate" transition={{ delay: 0.4 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full"></motion.span>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
+        {/* TARJETA INTELIGENTE DE TICKET (Reemplaza el botón rojo) */}
         <AnimatePresence>
-          {mode === 'client' && showTicketButton && (
-            <motion.div 
-              initial={{ opacity: 0, y: 15, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="flex justify-start pl-11"
-            >
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleCreateTicket}
-                className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-5 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-sm"
-              >
-                <Ticket size={18} />
-                Generar Ticket de Soporte de Emergencia
-              </motion.button>
+          {mode === 'cliente' && showTicketButton && (
+            <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pl-11 pr-4">
+              <div className="bg-white border-2 border-amber-200 rounded-2xl p-5 shadow-lg shadow-amber-900/5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-10"></div>
+                <div className="flex items-start gap-3 mb-3">
+                  <AlertTriangle className="text-amber-500 shrink-0" size={24} />
+                  <div>
+                    <h4 className="font-black text-slate-800">Falla de hardware detectada</h4>
+                    <p className="text-sm text-slate-500 font-medium leading-snug mt-1">Este problema requiere atención humana. ¿Deseas escalar esto a un ingeniero de Innotrev?</p>
+                  </div>
+                </div>
+                <button onClick={handleCreateTicket} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl transition-all shadow-md hover:shadow-amber-500/30 flex items-center justify-center gap-2 mt-4">
+                  <Ticket size={18} /> Escalar a Soporte Técnico
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
-        
-        <div ref={messagesEndRef} className="h-2" />
+        <div ref={messagesEndRef} className="h-4" />
       </div>
 
-      <div className="p-4 bg-white border-t border-slate-200 z-10 relative">
-        <div className="relative flex items-center w-full">
+      {/* ÁREA DE INPUT FLOTANTE */}
+      <div className="p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 z-10 shrink-0">
+        <div className="relative flex items-center max-w-4xl mx-auto">
           <input
             type="text"
-            className="w-full bg-slate-50 border border-slate-200 rounded-full pl-6 pr-14 py-3.5 text-[15px] focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all shadow-inner"
-            placeholder={mode === 'admin' ? "Consultar estado del sistema..." : "Describe tu problema de forma natural..."}
+            className="w-full bg-slate-100 border border-transparent rounded-full pl-6 pr-14 py-4 text-[15px] focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder:text-slate-400 font-medium text-slate-700 shadow-inner"
+            placeholder="Escribe tu problema de forma natural aquí..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
             disabled={loading}
           />
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button 
             onClick={sendMessage}
             disabled={loading || !input.trim()}
-            className="absolute right-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white p-2.5 rounded-full transition-colors shadow-sm"
+            className="absolute right-2.5 bg-[#0b1437] hover:bg-blue-600 disabled:bg-slate-300 text-white w-10 h-10 rounded-full transition-all shadow-md flex items-center justify-center"
           >
-            <Send size={18} className={loading ? 'opacity-0' : 'opacity-100 ml-0.5'} />
-          </motion.button>
+            <Send size={16} className={`ml-0.5 ${loading ? 'opacity-0' : 'opacity-100'}`} />
+          </button>
         </div>
+        <p className="text-center text-[10px] text-slate-400 mt-2 font-medium">La IA puede cometer errores. Verifica el estado de tu equipo físico.</p>
       </div>
     </div>
   );
