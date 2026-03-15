@@ -41,29 +41,25 @@ from datetime import datetime
 @router.post("/{equipo_id}/recepcion", response_model=EquipmentResponse)
 def confirmar_recepcion(
     equipo_id: int,
+    estado_empaque: str = Form(...),
+    confirmacion_encendido: bool = Form(...),
     notas_recepcion: str = Form(""),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Endpoint para que el cliente confirme la recepción de un equipo 'EN_TRANSITO'.
-    Sube una foto y cambia el estado a 'INSTALADO'.
-    """
-    # Buscamos el equipo en la BD
+   
     equipo = db.query(Equipo).filter(Equipo.id == equipo_id).first()
     if not equipo:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
         
-    # Validamos que el equipo pertenezca al cliente logueado
     if equipo.cliente_id != current_user.id:
         raise HTTPException(status_code=403, detail="No tienes permisos para recibir este equipo.")
 
-    # Simulamos el guardado de la foto (En la vida real iría a AWS S3)
-    # y actualizamos los datos del equipo:
+    
     equipo.status = "INSTALADO"
     equipo.fecha_recepcion = datetime.utcnow()
-    equipo.notas_recepcion = notas_recepcion
+    equipo.notas_recepcion = f"Empaque: {estado_empaque} | Encendió: {'Sí' if confirmacion_encendido else 'No'} | Notas: {notas_recepcion}"
     
     db.commit()
     db.refresh(equipo)
