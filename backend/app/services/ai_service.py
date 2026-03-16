@@ -57,6 +57,20 @@ class AIService:
         response = self.rag_chain.invoke({"input": message})
         return response["answer"]
     
+    async def chat_stream(self, message: str):
+        if not self.rag_chain:
+            yield "Error: El cerebro de IA está desconectado."
+            return
+            
+        try:
+            # astream va liberando la respuesta en tiempo real
+            async for chunk in self.rag_chain.astream({"input": message}):
+                if "answer" in chunk:
+                    yield chunk["answer"]
+        except Exception as e:
+            print(f"Error en streaming: {e}")
+            yield " Ocurrió un error de latencia con el modelo local."
+    
     # 2. DETECTOR DE PRIORIDAD (Nuevo)
     async def classify_priority(self, message: str) -> str:
         msg = message.lower()

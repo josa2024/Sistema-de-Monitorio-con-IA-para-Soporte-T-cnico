@@ -47,7 +47,7 @@ const Chatbot = ({
     setMessages((prev) => [...prev, userMsg]);
     setLastUserIssue(input);
     setInput('');
-    setLoading(true);
+    setLoading(true); // Aparecen los puntitos de "Escribiendo..."
     setPriority(null);
     setCategory('General / Otro'); 
     setShowTicketButton(false);
@@ -61,20 +61,58 @@ const Chatbot = ({
       });
 
       if (!response.ok) throw new Error('Error en el servidor');
-      const data = await response.json();
       
-      if (data.priority) {
-        setPriority(data.priority);
-        if (mode === 'cliente' && (data.priority === 'ALTA' || data.priority === 'CRITICA')) {
-          setShowTicketButton(true);
+      // Creamos una burbuja vacía para el bot y quitamos los 3 puntitos
+      setMessages((prev) => [...prev, { role: 'bot', text: '' }]);
+      setLoading(false);
+
+      // Iniciamos el lector del flujo de datos en vivo (Streaming)
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let botText = ""; // Memoria temporal de la respuesta que se va armando
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const dataStr = line.replace('data: ', '');
+              const data = JSON.parse(dataStr);
+              
+              if (data.type === 'metadata') {
+                // Configurar prioridad de ticket invisiblemente
+                if (data.priority) {
+                  setPriority(data.priority);
+                  if (mode === 'cliente' && (data.priority === 'ALTA' || data.priority === 'CRITICA')) {
+                    setShowTicketButton(true);
+                  }
+                }
+                if (data.category) setCategory(data.category);
+              } 
+              else if (data.type === 'chunk') {
+                // Agregar palabra por palabra a la última burbuja
+                botText += data.text;
+                setMessages(prev => {
+                  const newMsgs = [...prev];
+                  newMsgs[newMsgs.length - 1].text = botText;
+                  return newMsgs;
+                });
+              }
+            } catch (e) {
+              // Silenciar errores de lectura de pedazos incompletos
+            }
+          }
         }
       }
-      if (data.category) setCategory(data.category);
-      
-      setMessages((prev) => [...prev, { role: 'bot', text: data.response }]);
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'bot', text: '❌ No se pudo establecer conexión con el cerebro de procesamiento.' }]);
-    } finally { setLoading(false); }
+      setLoading(false);
+    }
   };
 
   const handleCreateTicket = async () => {
