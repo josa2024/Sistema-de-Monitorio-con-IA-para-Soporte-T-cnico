@@ -1,26 +1,44 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, ShieldAlert, User, Ticket, Sparkles, AlertTriangle } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { Send, Bot, ShieldAlert, Ticket, Sparkles, AlertTriangle, RotateCcw } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const Chatbot = ({ mode = 'admin', isAuthenticated, onAuthRequest }) => {
-  const [messages, setMessages] = useState([
-    { 
+const Chatbot = ({ 
+  mode = 'admin', 
+  isAuthenticated, 
+  onAuthRequest,
+  messages,          
+  setMessages,       
+  input,             
+  setInput,          
+  loading,           
+  setLoading,        
+  priority,          
+  setPriority,       
+  showTicketButton,  
+  setShowTicketButton,
+  lastUserIssue,     
+  setLastUserIssue,  
+  category,          
+  setCategory        
+}) => {
+  
+  const messagesEndRef = useRef(null);
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  useEffect(() => { scrollToBottom(); }, [messages, loading, showTicketButton]);
+
+  const handleResetChat = () => {
+    setMessages([{ 
       role: 'bot', 
       text: mode === 'admin' 
         ? 'Sistemas en línea. Soy la IA de diagnóstico técnico de Innotrev.' 
         : 'Hola. Soy el agente de IA de Innotrev. Estoy aquí para resolver problemas con tus equipos Zebra, Honeywell o infraestructura RFID. ¿En qué te ayudo?' 
-    }
-  ]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [priority, setPriority] = useState(null);
-  const [showTicketButton, setShowTicketButton] = useState(false);
-  const [lastUserIssue, setLastUserIssue] = useState('');
-  const [category, setCategory] = useState('General / Otro'); 
-
-  const messagesEndRef = useRef(null);
-  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  useEffect(() => { scrollToBottom(); }, [messages, loading, showTicketButton]);
+    }]);
+    setInput('');
+    setPriority(null);
+    setShowTicketButton(false);
+    setLastUserIssue('');
+    setCategory('General / Otro');
+  };
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -105,10 +123,10 @@ const Chatbot = ({ mode = 'admin', isAuthenticated, onAuthRequest }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] relative">
+    <div className="flex flex-col w-full h-full bg-[#f8fafc] relative overflow-hidden">
       
       {/* HEADER PREMIUM */}
-      <div className="bg-[#0b1437] text-white px-6 py-4 flex items-center justify-between shrink-0 shadow-md z-10">
+      <div className="bg-[#0b1437] text-white px-6 py-4 flex items-center justify-between shrink-0 shadow-md z-20">
         <div className="flex items-center gap-4">
           <div className="relative">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-inner border border-white/10">
@@ -123,12 +141,23 @@ const Chatbot = ({ mode = 'admin', isAuthenticated, onAuthRequest }) => {
             <p className="text-blue-200/80 text-xs font-medium">Asistente de Nivel 0 • Respuestas inmediatas</p>
           </div>
         </div>
+        
+        {/* BOTÓN: Limpiar Chat */}
+        {messages.length > 1 && (
+           <button 
+             onClick={handleResetChat} 
+             className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white px-3 py-2 rounded-xl text-xs font-bold transition-colors border border-white/10 shadow-sm"
+             title="Reiniciar conversación"
+           >
+             <RotateCcw size={14} /> <span className="hidden sm:inline">Limpiar</span>
+           </button>
+        )}
       </div>
 
       {/* NOTIFICACIÓN ADMIN (Si aplica) */}
       <AnimatePresence>
         {mode === 'admin' && priority === 'ALTA' && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="bg-red-500 text-white px-6 py-3 flex items-center gap-3 shadow-inner">
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="shrink-0 bg-red-500 text-white px-6 py-3 flex items-center gap-3 shadow-inner z-10">
             <ShieldAlert size={20} className="animate-bounce" />
             <div>
                <p className="font-black text-xs uppercase tracking-widest">Nivel de Prioridad Crítica</p>
@@ -138,8 +167,8 @@ const Chatbot = ({ mode = 'admin', isAuthenticated, onAuthRequest }) => {
         )}
       </AnimatePresence>
 
-      {/* ÁREA DE CHAT */}
-      <div className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar relative">
+      {/* ÁREA DE CHAT (Fija y scrolleable internamente) */}
+      <div className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto space-y-6 custom-scrollbar bg-[#f8fafc] z-10">
         <AnimatePresence>
           {messages.map((msg, index) => (
             <motion.div key={index} initial={{ opacity: 0, y: 15, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} layout className={`flex gap-3 items-end ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -177,7 +206,7 @@ const Chatbot = ({ mode = 'admin', isAuthenticated, onAuthRequest }) => {
           )}
         </AnimatePresence>
 
-        {/* TARJETA INTELIGENTE DE TICKET (Reemplaza el botón rojo) */}
+        {/* TARJETA INTELIGENTE DE TICKET */}
         <AnimatePresence>
           {mode === 'cliente' && showTicketButton && (
             <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pl-11 pr-4">
@@ -200,8 +229,8 @@ const Chatbot = ({ mode = 'admin', isAuthenticated, onAuthRequest }) => {
         <div ref={messagesEndRef} className="h-4" />
       </div>
 
-      {/* ÁREA DE INPUT FLOTANTE */}
-      <div className="p-4 bg-white/80 backdrop-blur-md border-t border-slate-200 z-10 shrink-0">
+      {/* ÁREA DE INPUT FLOTANTE (Fija abajo) */}
+      <div className="p-4 bg-white/90 backdrop-blur-md border-t border-slate-200 z-20 shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.03)]">
         <div className="relative flex items-center max-w-4xl mx-auto">
           <input
             type="text"
