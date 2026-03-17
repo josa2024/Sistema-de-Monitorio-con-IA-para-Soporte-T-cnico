@@ -1,8 +1,8 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum as SQLEnum
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from sqlalchemy.sql import func
 import enum
-from app.models.database import Base  # <-- CORREGIDO: Usamos el Base de models
+from app.models.database import Base
 
 class TicketPriority(str, enum.Enum):
     BAJA = "BAJA"
@@ -22,23 +22,34 @@ class Ticket(Base):
     id = Column(Integer, primary_key=True, index=True)
     titulo = Column(String, nullable=False)
     descripcion = Column(Text, nullable=False)
-    status = Column(Enum(TicketStatus), default=TicketStatus.ABIERTO)
-    prioridad = Column(Enum(TicketPriority), default=TicketPriority.MEDIA) 
-    
+    status = Column(SQLEnum(TicketStatus), default=TicketStatus.ABIERTO)
+    prioridad = Column(SQLEnum(TicketPriority), default=TicketPriority.MEDIA) 
     categoria = Column(String, nullable=True, default="General")
-
-    # <-- CORREGIDO: La tabla en español se llama "usuarios"
+    
+    fecha_agendada = Column(DateTime(timezone=True), nullable=True) 
+    
     cliente_id = Column(Integer, ForeignKey("usuarios.id")) 
     equipo_id = Column(Integer, ForeignKey("equipos.id"))
+    tecnico_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     
-    fecha_creacion = Column(DateTime, default=datetime.now)
-    fecha_actualizacion = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    # Nombres originales restaurados
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-class Comment(Base):
-    __tablename__ = "comments"
+    equipo = relationship("Equipo", backref="tickets")
+    cliente = relationship("User", foreign_keys=[cliente_id], backref="tickets_reportados")
+    tecnico = relationship("User", foreign_keys=[tecnico_id], backref="tickets_asignados")
+    comentarios = relationship("ComentarioTicket", back_populates="ticket", cascade="all, delete-orphan")
+
+
+class ComentarioTicket(Base):
+    __tablename__ = "comentarios_ticket"
 
     id = Column(Integer, primary_key=True, index=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"))
-    usuario_id = Column(Integer, ForeignKey("usuarios.id")) # <-- CORREGIDO
+    autor_id = Column(Integer, ForeignKey("usuarios.id")) 
     contenido = Column(Text, nullable=False)
-    fecha_creacion = Column(DateTime, default=datetime.now)
+    fecha_creacion = Column(DateTime(timezone=True), server_default=func.now())
+
+    ticket = relationship("Ticket", back_populates="comentarios")
+    autor = relationship("User", foreign_keys=[autor_id])

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from app.models.ticket import Ticket, Comment
+from app.models.ticket import Ticket, ComentarioTicket
 
 class TicketRepository:
     def create_ticket(self, db: Session, ticket: Ticket) -> Ticket:
@@ -33,11 +33,12 @@ class TicketRepository:
         db.refresh(db_obj)
         return db_obj
 
-    def create_comment(self, db: Session, comment: Comment) -> Comment:
+    def create_comment(self, db: Session, comment: ComentarioTicket) -> ComentarioTicket:
         db.add(comment)
         db.commit()
         db.refresh(comment)
         return comment
 
-    def get_comments(self, db: Session, ticket_id: int) -> List[Comment]:
-        return db.query(Comment).filter(Comment.ticket_id == ticket_id).order_by(Comment.created_at.asc()).all()
+    def get_comments(self, db: Session, ticket_id: int) -> List[ComentarioTicket]:
+        # Usamos fecha_creacion en lugar de created_at
+        return db.query(ComentarioTicket).filter(ComentarioTicket.ticket_id == ticket_id).order_by(ComentarioTicket.fecha_creacion.asc()).all()

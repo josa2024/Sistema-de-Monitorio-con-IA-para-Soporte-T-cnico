@@ -4,7 +4,7 @@ from app.repositories.ticket_repo import TicketRepository
 from app.repositories.equipment_repo import EquipmentRepository
 from app.schemas.ticket import TicketCreate, TicketUpdate, CommentCreate
 from app.core.websockets import manager
-from app.models.ticket import Ticket, Comment
+from app.models.ticket import Ticket, ComentarioTicket
 from app.models.user_models import User
 
 class TicketService:
@@ -17,40 +17,31 @@ class TicketService:
         self.equipment_repo = equipment_repo
 
     async def create_new_ticket(self, db: Session, ticket_in: TicketCreate, current_user: User) -> Ticket:
-        # 1. Validar que el equipo existe
         equipo = self.equipment_repo.get_by_id(db, ticket_in.equipo_id)
         if not equipo:
             raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
-        # 2. Validar que el equipo pertenece al cliente que reporta
         if equipo.cliente_id != current_user.id:
-             raise HTTPException(
-                 status_code=status.HTTP_403_FORBIDDEN, 
-                 detail="No tienes permiso para reportar fallas en este equipo."
-             )
+             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para reportar fallas en este equipo.")
 
-        # 3. Crear la instancia usando los nombres CORRECTOS del modelo
         new_ticket = Ticket(
             titulo=ticket_in.titulo,
             descripcion=ticket_in.descripcion,
             equipo_id=ticket_in.equipo_id,
             cliente_id=current_user.id,
             status="ABIERTO",
-            # Detectamos si la IA nos mandó prioridad ALTA en la descripción
             prioridad="ALTA" if "ALTA" in ticket_in.descripcion or "CRITICA" in ticket_in.descripcion else "MEDIA"
         )
 
         created_ticket = self.ticket_repo.create_ticket(db, new_ticket)
 
-        # 4. Notificar a los clientes conectados vía WebSocket
         payload = {
             "evento": "NUEVO_TICKET",
             "ticket_id": created_ticket.id,
             "equipo": created_ticket.equipo_id,
-            "fecha": str(created_ticket.fecha_creacion)
+            "fecha": str(created_ticket.created_at) 
         }
         await manager.broadcast(payload)
-
         return created_ticket
 
     def get_all_tickets(self, db: Session, skip: int = 0, limit: int = 100) -> list[Ticket]:
@@ -64,12 +55,8 @@ class TicketService:
         if not ticket:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
         
-        # Validar permisos: Admin o Dueño del ticket
         if current_user.role.nombre != "ADMIN" and ticket.cliente_id != current_user.id:
-             raise HTTPException(
-                 status_code=status.HTTP_403_FORBIDDEN, 
-                 detail="No tienes permiso para ver este ticket."
-             )
+             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para ver este ticket.")
         return ticket
 
     def update_ticket(self, db: Session, ticket_id: int, ticket_update: TicketUpdate, current_user: User) -> Ticket:
@@ -77,28 +64,23 @@ class TicketService:
         if not ticket:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
         
-        # Validar permisos
         if current_user.role.nombre != "ADMIN":
-             raise HTTPException(
-                 status_code=status.HTTP_403_FORBIDDEN, 
-                 detail="No tienes permiso para actualizar tickets."
-             )
+             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para actualizar tickets.")
         
         update_data = ticket_update.model_dump(exclude_unset=True)
         return self.ticket_repo.update(db, db_obj=ticket, obj_in=update_data)
 
-    def add_comment(self, db: Session, ticket_id: int, comment_in: CommentCreate, current_user: User) -> Comment:
+    def add_comment(self, db: Session, ticket_id: int, comment_in: CommentCreate, current_user: User) -> ComentarioTicket:
         self.get_ticket_detail(db, ticket_id, current_user)
         
-        # Corrección de variables de comentarios
-        new_comment = Comment(
+        new_comment = ComentarioTicket(
             ticket_id=ticket_id,
-            usuario_id=current_user.id,
+            autor_id=current_user.id,
             contenido=comment_in.contenido
         )
         return self.ticket_repo.create_comment(db, new_comment)
 
-    def list_comments(self, db: Session, ticket_id: int, current_user: User) -> list[Comment]:
+    def list_comments(self, db: Session, ticket_id: int, current_user: User) -> list[ComentarioTicket]:
         self.get_ticket_detail(db, ticket_id, current_user)
         return self.ticket_repo.get_comments(db, ticket_id)
 
@@ -108,12 +90,8 @@ class TicketService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
         
         if current_user.role.nombre != "ADMIN":
-             raise HTTPException(
-                 status_code=status.HTTP_403_FORBIDDEN, 
-                 detail="No tienes permiso para asignarte tickets."
-             )
+             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para asignarte tickets.")
         
-        # Corrección de nombre de variable (status en lugar de status_reporte)
         update_data = {"status": "EN_PROGRESO"}
         updated_ticket = self.ticket_repo.update(db, db_obj=ticket, obj_in=update_data)
 
@@ -124,5 +102,4 @@ class TicketService:
             "nuevo_status": "EN_PROGRESO"
         }
         await manager.broadcast(payload)
-
         return updated_ticket

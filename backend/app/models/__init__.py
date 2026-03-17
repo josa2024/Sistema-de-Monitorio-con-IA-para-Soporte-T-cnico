@@ -4,7 +4,7 @@ from .equipment_models import Equipo, SeguimientoInstalacion, GarantiaLicencia
 from .monitoring_models import ReporteAnomalias
 from .log import LogEventos
 from .ia_models import BaseConocimientoIA
-from .ticket import Ticket, Comment
+from .ticket import Ticket, ComentarioTicket
 from .license import License
 
 __all__ = [

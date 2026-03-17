@@ -1,18 +1,18 @@
-"""Initial migration
+"""nombres_restaurados
 
-Revision ID: 610f06a5f24f
+Revision ID: 750d1b9134f3
 Revises: 
-Create Date: 2026-02-02 23:48:49.857341
+Create Date: 2026-03-17 17:18:42.217301
 
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+
 
 # revision identifiers, used by Alembic.
-revision: str = '610f06a5f24f'
+revision: str = '750d1b9134f3'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -41,6 +41,9 @@ def upgrade() -> None:
     op.create_table('usuarios',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('nombre', sa.String(), nullable=True),
+    sa.Column('apellidos', sa.String(), nullable=True),
+    sa.Column('direccion', sa.String(), nullable=True),
+    sa.Column('telefono', sa.String(), nullable=True),
     sa.Column('email', sa.String(), nullable=False),
     sa.Column('password_hash', sa.String(), nullable=False),
     sa.Column('role_id', sa.Integer(), nullable=True),
@@ -56,8 +59,13 @@ def upgrade() -> None:
     sa.Column('numero_serie', sa.String(), nullable=False),
     sa.Column('modelo', sa.String(), nullable=True),
     sa.Column('cliente_id', sa.Integer(), nullable=True),
-    sa.Column('status', sa.Enum('EN_TRANSITO', 'RECIBIDO', 'INSTALADO', name='statusequipo'), nullable=True),
+    sa.Column('status', sa.Enum('SOLICITADO', 'PENDIENTE_PAGO', 'EN_TRANSITO', 'RECIBIDO', 'INSTALADO', 'FALLA_REPORTADA', 'MANTENIMIENTO', name='statusequipo'), nullable=True),
     sa.Column('fecha_salida_sucursal', sa.DateTime(), nullable=True),
+    sa.Column('estado_empaque', sa.String(), nullable=True),
+    sa.Column('confirmacion_encendido', sa.Boolean(), nullable=True),
+    sa.Column('fecha_recepcion', sa.DateTime(), nullable=True),
+    sa.Column('fecha_vencimiento_garantia', sa.DateTime(), nullable=True),
+    sa.Column('ruta_evidencia', sa.String(), nullable=True),
     sa.ForeignKeyConstraint(['cliente_id'], ['usuarios.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -77,16 +85,30 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_garantias_licencias_id'), 'garantias_licencias', ['id'], unique=False)
-    op.create_table('logs_eventos',
+    op.create_table('licenses',
     sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('equipo_id', sa.Integer(), nullable=True),
-    sa.Column('evento', sa.String(), nullable=True),
-    sa.Column('detalles', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    sa.Column('equipo_id', sa.Integer(), nullable=False),
+    sa.Column('tipo', sa.String(), nullable=False),
+    sa.Column('nombre_software', sa.String(), nullable=False),
+    sa.Column('licencia_key', sa.String(), nullable=True),
+    sa.Column('fecha_inicio', sa.Date(), nullable=False),
+    sa.Column('fecha_vencimiento', sa.Date(), nullable=False),
+    sa.Column('archivo_url', sa.String(), nullable=True),
+    sa.Column('is_active', sa.Boolean(), nullable=True),
+    sa.ForeignKeyConstraint(['equipo_id'], ['equipos.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_licenses_id'), 'licenses', ['id'], unique=False)
+    op.create_table('log_eventos',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('equipo_id', sa.Integer(), nullable=False),
+    sa.Column('evento', sa.String(), nullable=False),
+    sa.Column('detalles', sa.JSON(), nullable=True),
     sa.Column('fecha', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['equipo_id'], ['equipos.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_logs_eventos_id'), 'logs_eventos', ['id'], unique=False)
+    op.create_index(op.f('ix_log_eventos_id'), 'log_eventos', ['id'], unique=False)
     op.create_table('reportes_anomalias',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('equipo_id', sa.Integer(), nullable=True),
@@ -115,18 +137,54 @@ def upgrade() -> None:
     sa.UniqueConstraint('equipo_id')
     )
     op.create_index(op.f('ix_seguimiento_instalacion_id'), 'seguimiento_instalacion', ['id'], unique=False)
+    op.create_table('tickets',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('titulo', sa.String(), nullable=False),
+    sa.Column('descripcion', sa.Text(), nullable=False),
+    sa.Column('status', sa.Enum('ABIERTO', 'EN_PROGRESO', 'RESUELTO', 'CERRADO', name='ticketstatus'), nullable=True),
+    sa.Column('prioridad', sa.Enum('BAJA', 'MEDIA', 'ALTA', 'CRITICA', name='ticketpriority'), nullable=True),
+    sa.Column('categoria', sa.String(), nullable=True),
+    sa.Column('fecha_agendada', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('cliente_id', sa.Integer(), nullable=True),
+    sa.Column('equipo_id', sa.Integer(), nullable=True),
+    sa.Column('tecnico_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['cliente_id'], ['usuarios.id'], ),
+    sa.ForeignKeyConstraint(['equipo_id'], ['equipos.id'], ),
+    sa.ForeignKeyConstraint(['tecnico_id'], ['usuarios.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_tickets_id'), 'tickets', ['id'], unique=False)
+    op.create_table('comentarios_ticket',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('ticket_id', sa.Integer(), nullable=True),
+    sa.Column('autor_id', sa.Integer(), nullable=True),
+    sa.Column('contenido', sa.Text(), nullable=False),
+    sa.Column('fecha_creacion', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
+    sa.ForeignKeyConstraint(['autor_id'], ['usuarios.id'], ),
+    sa.ForeignKeyConstraint(['ticket_id'], ['tickets.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_comentarios_ticket_id'), 'comentarios_ticket', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_comentarios_ticket_id'), table_name='comentarios_ticket')
+    op.drop_table('comentarios_ticket')
+    op.drop_index(op.f('ix_tickets_id'), table_name='tickets')
+    op.drop_table('tickets')
     op.drop_index(op.f('ix_seguimiento_instalacion_id'), table_name='seguimiento_instalacion')
     op.drop_table('seguimiento_instalacion')
     op.drop_index(op.f('ix_reportes_anomalias_id'), table_name='reportes_anomalias')
     op.drop_table('reportes_anomalias')
-    op.drop_index(op.f('ix_logs_eventos_id'), table_name='logs_eventos')
-    op.drop_table('logs_eventos')
+    op.drop_index(op.f('ix_log_eventos_id'), table_name='log_eventos')
+    op.drop_table('log_eventos')
+    op.drop_index(op.f('ix_licenses_id'), table_name='licenses')
+    op.drop_table('licenses')
     op.drop_index(op.f('ix_garantias_licencias_id'), table_name='garantias_licencias')
     op.drop_table('garantias_licencias')
     op.drop_index(op.f('ix_equipos_numero_serie'), table_name='equipos')

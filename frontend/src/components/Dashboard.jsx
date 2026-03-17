@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Activity, AlertTriangle, CheckCircle2, Server, Search, Plus, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Box, Bot, Send } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Server, Search, Plus, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Box, Bot, Video } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -10,10 +10,12 @@ const Dashboard = () => {
   const [expiringLicenses, setExpiringLicenses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [liveAlert, setLiveAlert] = useState(null);
+  
+  // Estados para el Modal del Ticket
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState(''); // NUEVO ESTADO PARA LA CITA
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -42,10 +44,7 @@ const Dashboard = () => {
 
       let eqData = [];
       const eqResponse = await fetch(`http://127.0.0.1:8000/api/v1/equipo/?t=${Date.now()}`, { headers });
-      if (eqResponse.ok) {
-        eqData = await eqResponse.json();
-        setEquipmentList(Array.isArray(eqData) ? eqData : []);
-      }
+      if (eqResponse.ok) { eqData = await eqResponse.json(); setEquipmentList(Array.isArray(eqData) ? eqData : []); }
 
       const licResponse = await fetch(`http://127.0.0.1:8000/api/v1/licencias/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
       if (licResponse.ok) setExpiringLicenses(await licResponse.json());
@@ -54,17 +53,11 @@ const Dashboard = () => {
       if (tktResponse.ok) {
         const tktData = await tktResponse.json();
         const activeTickets = tktData.filter(t => t.status === 'ABIERTO' || t.status === 'EN_PROGRESO');
-        activeTickets.sort((a, b) => {
-          const val = { 'CRITICA': 4, 'ALTA': 3, 'MEDIA': 2, 'BAJA': 1 };
-          return val[b.prioridad] - val[a.prioridad];
-        });
+        activeTickets.sort((a, b) => { const val = { 'CRITICA': 4, 'ALTA': 3, 'MEDIA': 2, 'BAJA': 1 }; return val[b.prioridad] - val[a.prioridad]; });
         setTicketsList(activeTickets);
 
         const categoryCounts = {};
-        tktData.forEach(ticket => {
-          const catName = ticket.categoria || 'General / Otro';
-          categoryCounts[catName] = (categoryCounts[catName] || 0) + 1;
-        });
+        tktData.forEach(ticket => { const catName = ticket.categoria || 'General / Otro'; categoryCounts[catName] = (categoryCounts[catName] || 0) + 1; });
         setChartData(Object.keys(categoryCounts).map(name => ({ name, fallas: categoryCounts[name] })));
       }
     } catch (error) { console.error("Error:", error); } finally { setIsLoading(false); }
@@ -77,8 +70,7 @@ const Dashboard = () => {
       const data = JSON.parse(event.data);
       if (data.evento === "NUEVO_TICKET") {
         setLiveAlert(`¡ALERTA IA! Ticket TKT-${String(data.ticket_id).padStart(4, '0')}`);
-        setTimeout(() => setLiveAlert(null), 6000);
-        fetchData();
+        setTimeout(() => setLiveAlert(null), 6000); fetchData();
       }
     };
     return () => socket.close();
@@ -86,6 +78,7 @@ const Dashboard = () => {
 
   const handleOpenTicket = async (ticket) => {
     setSelectedTicket(ticket);
+    setScheduledDate(''); // Limpiamos la fecha al abrir
     try {
       const token = localStorage.getItem('token') || '';
       const res = await fetch(`http://127.0.0.1:8000/api/v1/tickets/${ticket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -93,14 +86,15 @@ const Dashboard = () => {
     } catch (e) { console.error(e); }
   };
 
-  const handleCloseModal = () => { setSelectedTicket(null); setComments([]); setNewComment(''); };
+  const handleCloseModal = () => { setSelectedTicket(null); setComments([]); setScheduledDate(''); };
 
   const handleAssignTicket = async () => {
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token') || '';
       await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}/assign`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` } });
-      await fetchData(); handleCloseModal();
+      await fetchData(); 
+      setSelectedTicket({ ...selectedTicket, status: 'EN_PROGRESO' }); // Actualizamos vista local
     } finally { setIsProcessing(false); }
   };
 
@@ -113,13 +107,32 @@ const Dashboard = () => {
     } finally { setIsProcessing(false); }
   };
 
-  const handleAddComment = async () => {
-    if (!newComment.trim()) return;
+  // NUEVA FUNCIÓN: Agendar Videollamada
+  const handleScheduleCall = async () => {
+    if (!scheduledDate) return;
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token') || '';
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}/comments`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ contenido: newComment }) });
-      if (res.ok) { setComments([...comments, await res.json()]); setNewComment(''); }
+      // 1. Guardamos la fecha en el ticket
+      await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}`, { 
+        method: 'PATCH', 
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ fecha_agendada: scheduledDate }) 
+      });
+      // 2. Agregamos un comentario a la bitácora para que el cliente lo sepa
+      await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}/comments`, { 
+        method: 'POST', 
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ contenido: `Videollamada de soporte agendada para el ${new Date(scheduledDate).toLocaleString()}` }) 
+      });
+      
+      await fetchData();
+      setSelectedTicket({ ...selectedTicket, fecha_agendada: scheduledDate }); // Actualizamos vista
+      
+      // Recargamos comentarios
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) setComments(await res.json());
+
     } finally { setIsProcessing(false); }
   };
 
@@ -203,7 +216,6 @@ const Dashboard = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-1/2">
-            {/* Directorio Restablecido */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
               <div className="p-5 border-b border-slate-50 bg-slate-50/80"><h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Equipos Activos</h2></div>
               <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
@@ -220,7 +232,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Vencimientos Restablecidos */}
             <div className="bg-gradient-to-b from-amber-50/50 to-white rounded-3xl shadow-sm border border-amber-100 flex flex-col overflow-hidden">
               <div className="p-5 border-b border-amber-100/50 flex justify-between items-center">
                 <h2 className="text-xs font-black text-amber-800 uppercase tracking-widest flex items-center gap-2"><CalendarClock size={16}/> Vencimientos (30d)</h2>
@@ -242,11 +253,12 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Modal de Ticket con Comentarios Restaurado y Estilizado */}
+      {/* MODAL DE TICKET: Flujo de Videollamada */}
       <AnimatePresence>
         {selectedTicket && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b1437]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }} className="bg-white w-full max-w-3xl rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+              
               <div className="px-8 py-6 bg-[#0b1437] text-white flex justify-between items-start shrink-0">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
@@ -280,29 +292,46 @@ const Dashboard = () => {
                 )}
               </div>
 
-              <div className="p-6 border-t border-slate-100 bg-white shrink-0">
+              {/* PIE DEL MODAL: Lógica de Videollamada */}
+              <div className="p-8 border-t border-slate-100 bg-white shrink-0">
                 {selectedTicket.status === 'ABIERTO' ? (
                   <div className="flex justify-end gap-3">
-                    <button onClick={handleCloseModal} className="px-6 py-3.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-2xl transition-colors">Cerrar Visor</button>
-                    <button onClick={handleAssignTicket} disabled={isProcessing} className="bg-[#0b1437] hover:bg-blue-800 text-white px-8 py-3.5 rounded-2xl text-sm font-black flex items-center gap-2 transition-colors shadow-lg shadow-blue-900/30 disabled:opacity-50">
-                      <Briefcase size={18} /> {isProcessing ? 'Asignando...' : 'Tomar Caso'}
+                    <button onClick={handleCloseModal} className="px-6 py-4 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-2xl transition-colors">Cerrar Visor</button>
+                    <button onClick={handleAssignTicket} disabled={isProcessing} className="bg-[#0b1437] hover:bg-blue-800 text-white px-10 py-4 rounded-2xl text-sm font-black flex items-center gap-2 transition-colors shadow-lg shadow-blue-900/30 disabled:opacity-50">
+                      <Briefcase size={18} /> Tomar Caso
                     </button>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex gap-3">
-                      <input type="text" value={newComment} onChange={(e) => setNewComment(e.target.value)} placeholder="Actualizar estado al cliente..." className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-medium outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" onKeyDown={(e) => e.key === 'Enter' && handleAddComment()} />
-                      <button onClick={handleAddComment} disabled={isProcessing || !newComment.trim()} className="bg-[#0b1437] hover:bg-blue-800 text-white px-8 py-4 rounded-2xl text-sm font-black transition-colors shadow-lg disabled:opacity-50"><Send size={18}/></button>
-                    </div>
-                    <div className="flex justify-between items-center pt-4">
-                      <span className="text-xs text-blue-600 font-black tracking-widest uppercase bg-blue-50 px-4 py-2 rounded-xl">Técnico Asignado</span>
-                      <button onClick={handleResolveTicket} disabled={isProcessing} className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-2xl text-sm font-black flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/30 disabled:opacity-50">
-                        <CheckCircle2 size={18} /> Concluir Soporte
+                ) : selectedTicket.status === 'EN_PROGRESO' && !selectedTicket.fecha_agendada ? (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">Agendar Videollamada Técnica</label>
+                    <div className="flex gap-4">
+                      <input 
+                        type="datetime-local" 
+                        value={scheduledDate} 
+                        onChange={e => setScheduledDate(e.target.value)} 
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-[#0b1437] outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" 
+                      />
+                      <button onClick={handleScheduleCall} disabled={isProcessing || !scheduledDate} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl text-sm font-black transition-colors shadow-lg shadow-blue-600/30 disabled:opacity-50 flex items-center gap-2">
+                        <Video size={18}/> Agendar y Notificar
                       </button>
                     </div>
                   </div>
+                ) : (
+                  <div className="flex justify-between items-center">
+                    <div className="bg-blue-50 border border-blue-100 px-5 py-3.5 rounded-2xl flex items-center gap-4">
+                      <div className="bg-white p-2 rounded-xl text-blue-600 shadow-sm"><Video size={20} /></div>
+                      <div>
+                        <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest">Videollamada Agendada</p>
+                        <p className="text-sm font-black text-[#0b1437] mt-0.5">{new Date(selectedTicket.fecha_agendada).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <button onClick={handleResolveTicket} disabled={isProcessing} className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4 rounded-2xl text-sm font-black flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/30 disabled:opacity-50">
+                      <CheckCircle2 size={18} /> Concluir Soporte
+                    </button>
+                  </div>
                 )}
               </div>
+
             </motion.div>
           </motion.div>
         )}

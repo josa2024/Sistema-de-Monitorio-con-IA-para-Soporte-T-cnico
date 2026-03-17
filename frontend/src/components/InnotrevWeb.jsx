@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Download, Store, CreditCard, AlertTriangle, ShieldAlert } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Download, Store, CreditCard, AlertTriangle, ShieldAlert, Video } from 'lucide-react';import { motion, AnimatePresence } from 'framer-motion';
 import Chatbot from './Chatbot';
 import Login from './Login';
 
@@ -299,9 +298,18 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
             </div>
             {tickets.length > 0 ? (
               <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+
+
                 <table className="w-full text-left">
                   <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs uppercase font-black tracking-wider">
-                    <tr><th className="px-8 py-5"># TKT</th><th className="px-8 py-5">Falla Reportada</th><th className="px-8 py-5">Categoría IA</th><th className="px-8 py-5">Estado</th><th className="px-8 py-5">Fecha</th></tr>
+                    <tr>
+                      <th className="px-8 py-5"># TKT</th>
+                      <th className="px-8 py-5">Falla Reportada</th>
+                      <th className="px-8 py-5">Categoría IA</th>
+                      <th className="px-8 py-5">Estado</th>
+                      <th className="px-8 py-5">Cita Virtual</th>
+                      <th className="px-8 py-5">Fecha Creado</th>
+                    </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {tickets.map(t => (
@@ -318,11 +326,24 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                             {t.status === 'ABIERTO' ? 'Pendiente' : 'Atendido'}
                           </span>
                         </td>
+                        {/* NUEVA COLUMNA DE VIDEOLLAMADA */}
+                        <td className="px-8 py-5">
+                          {t.fecha_agendada ? (
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-black text-[#0b1437]">{new Date(t.fecha_agendada).toLocaleString()}</span>
+                              <button className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-2 rounded-xl transition-colors shadow-sm" title="Unirse a llamada (Próximamente)"><Video size={16} /></button>
+                            </div>
+                          ) : (
+                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">Por definir</span>
+                          )}
+                        </td>
                         <td className="px-8 py-5 text-slate-500 font-medium text-sm">{new Date(t.created_at).toLocaleDateString()}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+
+
               </div>
             ) : (
               <div className="bg-white p-16 rounded-3xl shadow-sm border border-slate-200 text-center">

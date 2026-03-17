@@ -3,7 +3,6 @@ from typing import Optional
 from datetime import datetime
 from enum import Enum
 
-# Replicamos los Enums para validación en Pydantic
 class TicketPriority(str, Enum):
     BAJA = "BAJA"
     MEDIA = "MEDIA"
@@ -25,26 +24,31 @@ class TicketCreate(BaseModel):
 class TicketUpdate(BaseModel):
     status: Optional[TicketStatus] = None
     prioridad: Optional[TicketPriority] = None
+    fecha_agendada: Optional[datetime] = None
 
 class TicketResponse(TicketCreate):
     id: int
     status: TicketStatus
     prioridad: TicketPriority
-    fecha_creacion: datetime
-    cliente_id: int
+    created_at: Optional[datetime] = None       # Sincronizado con BD y Frontend
+    updated_at: Optional[datetime] = None
+    fecha_agendada: Optional[datetime] = None
+    cliente_id: Optional[int] = None
+    tecnico_id: Optional[int] = None
     categoria: Optional[str] = "General"
+
+    class Config:
+        from_attributes = True
 
 class CommentCreate(BaseModel):
     contenido: str
-    # No pedimos ticket_id ni usuario_id aquí porque usualmente
-    # se obtienen de la URL y del token de sesión respectivamente.
 
 class CommentResponse(BaseModel):
     id: int
     contenido: str
-    fecha_creacion: datetime
+    fecha_creacion: Optional[datetime] = None
     ticket_id: int
-    usuario_id: int # Asumiendo que guardas quién hizo el comentario
+    autor_id: int                               # Sincronizado con BD (autor_id)
 
     class Config:
         from_attributes = True
