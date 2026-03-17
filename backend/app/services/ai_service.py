@@ -9,9 +9,9 @@ from langchain_core.prompts import ChatPromptTemplate
 
 class AIService:
     def __init__(self):
-        print("🔧 Inicializando Cerebro IA (Versión Docker + Prioridad)...")
+        print("🔧 Inicializando Cerebro IA (Versión Docker + Prioridad + Streaming)...")
         
-        # 1. CONEXIÓN A DOCKER (Vital para que no falle)
+        # 1. CONEXIÓN A DOCKER
         ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         print(f"📡 Conectando a Ollama en: {ollama_url}")
         
@@ -33,10 +33,15 @@ class AIService:
             vector_db = FAISS.from_documents(splitter.split_documents(docs), self.embeddings)
             retriever = vector_db.as_retriever()
             
+            # --- NUEVA PERSONALIDAD DE LA IA ---
             system_prompt = (
-                "Eres el Asistente Técnico de INNOTREV. Ayuda con soporte Nivel 0. "
-                "Si encuentras la etiqueta 'ENLACE_VIDEO:', COPIA Y PEGA el enlace exacto al final. "
-                "Usa solo el contexto proporcionado:\n{context}"
+                "Eres el Asistente Técnico de INNOTREV (Soporte Nivel 0). "
+                "REGLAS ESTRICTAS DE RESPUESTA: "
+                "1. Sé extremadamente directo y conciso. Cero rodeos, saludos largos o explicaciones innecesarias. "
+                "2. Si hay pasos a seguir, resúmelos en viñetas (bullet points) muy cortas. "
+                "3. Si en el contexto encuentras la etiqueta 'ENLACE_VIDEO:', NO expliques el proceso completo paso a paso; "
+                "simplemente indícale al usuario que descargue el video instructivo desde Drive para ver la solución y pégale el enlace exacto. "
+                "Usa estrictamente la siguiente información de la base de datos para responder:\n{context}"
             )
             
             prompt = ChatPromptTemplate.from_messages([
@@ -63,7 +68,6 @@ class AIService:
             return
             
         try:
-            # astream va liberando la respuesta en tiempo real
             async for chunk in self.rag_chain.astream({"input": message}):
                 if "answer" in chunk:
                     yield chunk["answer"]
@@ -71,7 +75,7 @@ class AIService:
             print(f"Error en streaming: {e}")
             yield " Ocurrió un error de latencia con el modelo local."
     
-    # 2. DETECTOR DE PRIORIDAD (Nuevo)
+    # 2. DETECTOR DE PRIORIDAD
     async def classify_priority(self, message: str) -> str:
         msg = message.lower()
         if any(w in msg for w in ["urgente", "fuego", "humo", "servidor", "caído", "producción"]):
@@ -80,7 +84,7 @@ class AIService:
             return "MEDIA"
         return "BAJA"
     
-    # 3. EXTRACTOR DE CATEGORÍAS PARA ESTADÍSTICAS (Nuevo)
+    # 3. EXTRACTOR DE CATEGORÍAS
     async def extract_category(self, message: str) -> str:
         msg = message.lower()
         if any(w in msg for w in ["calienta", "fuego", "humo", "temperatura", "ventilador", "sobrecalentamiento", "calor"]):
