@@ -1,6 +1,14 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Bot, ShieldAlert, Ticket, Sparkles, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Send, Bot, ShieldAlert, Ticket, Sparkles, AlertTriangle, RotateCcw, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// --- NUEVO: PREGUNTAS PREDETERMINADAS ---
+const QUICK_ACTIONS = [
+  { emoji: "💳", title: "CardStudio: Instalar/Activar", prompt: "Necesito ayuda con la descarga, instalación y activación de la licencia de CardStudio 2.0." },
+  { emoji: "🖨️", title: "Cargar Zebra ZC100/300", prompt: "Explícame cómo hacer la carga de tarjetas y poner el ribbon en una impresora Zebra ZC100 o ZC300." },
+  { emoji: "🏷️", title: "ZebraDesigner: Instalar", prompt: "Ayúdame con la descarga de Zebra Designer 3 Essentials y a diseñar una etiqueta sencilla." },
+  { emoji: "🔴", title: "Calibrar Impresora (Luz Roja)", prompt: "Mi impresora de escritorio Zebra tiene luz roja o está descalibrada. Necesito calibrarla." }
+];
 
 const Chatbot = ({ 
   mode = 'admin', 
@@ -40,14 +48,16 @@ const Chatbot = ({
     setCategory('General / Otro');
   };
 
-  const sendMessage = async () => {
-    if (!input.trim()) return;
+  // NUEVO: Adaptamos sendMessage para que reciba el texto de los botones rápidos
+  const sendMessage = async (overrideText = null) => {
+    const textToSend = typeof overrideText === 'string' ? overrideText : input;
+    if (!textToSend.trim()) return;
 
-    const userMsg = { role: 'user', text: input };
+    const userMsg = { role: 'user', text: textToSend };
     setMessages((prev) => [...prev, userMsg]);
-    setLastUserIssue(input);
-    setInput('');
-    setLoading(true); // Aparecen los puntitos de "Escribiendo..."
+    setLastUserIssue(textToSend);
+    setInput(''); // Siempre limpiamos el input al enviar
+    setLoading(true);
     setPriority(null);
     setCategory('General / Otro'); 
     setShowTicketButton(false);
@@ -62,14 +72,12 @@ const Chatbot = ({
 
       if (!response.ok) throw new Error('Error en el servidor');
       
-      // Creamos una burbuja vacía para el bot y quitamos los 3 puntitos
       setMessages((prev) => [...prev, { role: 'bot', text: '' }]);
       setLoading(false);
 
-      // Iniciamos el lector del flujo de datos en vivo (Streaming)
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
-      let botText = ""; // Memoria temporal de la respuesta que se va armando
+      let botText = ""; 
 
       while (true) {
         const { value, done } = await reader.read();
@@ -85,7 +93,6 @@ const Chatbot = ({
               const data = JSON.parse(dataStr);
               
               if (data.type === 'metadata') {
-                // Configurar prioridad de ticket invisiblemente
                 if (data.priority) {
                   setPriority(data.priority);
                   if (mode === 'cliente' && (data.priority === 'ALTA' || data.priority === 'CRITICA')) {
@@ -95,7 +102,6 @@ const Chatbot = ({
                 if (data.category) setCategory(data.category);
               } 
               else if (data.type === 'chunk') {
-                // Agregar palabra por palabra a la última burbuja
                 botText += data.text;
                 setMessages(prev => {
                   const newMsgs = [...prev];
@@ -103,9 +109,7 @@ const Chatbot = ({
                   return newMsgs;
                 });
               }
-            } catch (e) {
-              // Silenciar errores de lectura de pedazos incompletos
-            }
+            } catch (e) {}
           }
         }
       }
@@ -230,6 +234,39 @@ const Chatbot = ({
           ))}
         </AnimatePresence>
 
+        {/* --- NUEVO: BLOQUE DE PREGUNTAS PREDETERMINADAS --- */}
+        {/* Solo se muestra si no hay más de 1 mensaje (solo el saludo del bot) y no está cargando */}
+        <AnimatePresence>
+          {messages.length === 1 && !loading && mode === 'cliente' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ delay: 0.2 }}
+              className="pl-11 pr-4 pt-2 pb-4"
+            >
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                <Zap size={14} className="text-amber-500" /> Soluciones Rápidas Frecuentes
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {QUICK_ACTIONS.map((action, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => sendMessage(action.prompt)}
+                    className="text-left bg-white border border-blue-100 hover:border-blue-400 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group flex items-start gap-3"
+                  >
+                    <span className="text-2xl mt-0.5">{action.emoji}</span>
+                    <div>
+                      <h4 className="font-bold text-[#0b1437] text-[13px] group-hover:text-blue-600 transition-colors leading-tight mb-1">{action.title}</h4>
+                      <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{action.prompt}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Indicador de "Escribiendo..." */}
         <AnimatePresence>
           {loading && (
@@ -273,14 +310,14 @@ const Chatbot = ({
           <input
             type="text"
             className="w-full bg-slate-100 border border-transparent rounded-full pl-6 pr-14 py-4 text-[15px] focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder:text-slate-400 font-medium text-slate-700 shadow-inner"
-            placeholder="Escribe tu problema de forma natural aquí..."
+            placeholder="O escribe tu problema de forma manual aquí..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
             disabled={loading}
           />
           <button 
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={loading || !input.trim()}
             className="absolute right-2.5 bg-[#0b1437] hover:bg-blue-600 disabled:bg-slate-300 text-white w-10 h-10 rounded-full transition-all shadow-md flex items-center justify-center"
           >
