@@ -4,7 +4,6 @@ from app.models.ticket import Ticket, ComentarioTicket
 
 class TicketRepository:
     def create_ticket(self, db: Session, ticket: Ticket) -> Ticket:
-        """Inserta un nuevo ticket en la base de datos."""
         db.add(ticket)
         db.commit()
         db.refresh(ticket)
@@ -12,7 +11,6 @@ class TicketRepository:
 
     def get_tickets(self, db: Session, skip: int = 0, limit: int = 100, 
                     equipo_id: Optional[int] = None, cliente_id: Optional[int] = None) -> List[Ticket]:
-        """Lista tickets con filtros opcionales."""
         query = db.query(Ticket)
         if equipo_id:
             query = query.filter(Ticket.equipo_id == equipo_id)
@@ -21,11 +19,9 @@ class TicketRepository:
         return query.offset(skip).limit(limit).all()
 
     def get_by_id(self, db: Session, ticket_id: int) -> Optional[Ticket]:
-        """Busca un ticket por su ID."""
         return db.query(Ticket).filter(Ticket.id == ticket_id).first()
 
     def update(self, db: Session, *, db_obj: Ticket, obj_in: dict) -> Ticket:
-        """Actualiza los campos de un ticket existente."""
         for field, value in obj_in.items():
             setattr(db_obj, field, value)
         db.add(db_obj)
@@ -34,16 +30,10 @@ class TicketRepository:
         return db_obj
 
     def create_comment(self, db: Session, comment: ComentarioTicket) -> ComentarioTicket:
-    def create_comment(self, db: Session, comment: Comment) -> Comment:
-        """Crea un nuevo comentario en un ticket."""
         db.add(comment)
         db.commit()
         db.refresh(comment)
         return comment
 
     def get_comments(self, db: Session, ticket_id: int) -> List[ComentarioTicket]:
-        # Usamos fecha_creacion en lugar de created_at
         return db.query(ComentarioTicket).filter(ComentarioTicket.ticket_id == ticket_id).order_by(ComentarioTicket.fecha_creacion.asc()).all()
-    def get_comments(self, db: Session, ticket_id: int) -> List[Comment]:
-        """Obtiene los comentarios de un ticket ordenados por fecha de creación."""
-        return db.query(Comment).filter(Comment.ticket_id == ticket_id).order_by(Comment.fecha_creacion.asc()).all()
