@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # 2. Import your app's settings and Base model
 from app.core.config import settings
 from app.core.database import Base
-from app.models.ticket import Ticket, Comment, TicketLog
+from app.models.ticket import Ticket, ComentarioTicket, TicketLog, TicketAttachment
 
 # --- CUSTOM CONFIGURATION END ---
 

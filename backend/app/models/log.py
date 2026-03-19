@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from app.models.database import Base
+from app.core.database import Base
 
 class LogEventos(Base):
     __tablename__ = "log_eventos"

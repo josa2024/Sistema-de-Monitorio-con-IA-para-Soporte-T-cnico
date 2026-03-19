@@ -1,15 +1,4 @@
-<<<<<<< HEAD
-from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    DateTime,
-    ForeignKey,
-    Text,
-)
-=======
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
->>>>>>> origin/jossy
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
