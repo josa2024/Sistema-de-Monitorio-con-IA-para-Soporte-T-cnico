@@ -1,12 +1,18 @@
 import os
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from fastapi import UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.repositories.equipment_repo import EquipmentRepository
-from app.models.equipment_models import Equipo
-from app.models.equipment_models import EquipmentLog
+from app.models.equipment_models import (
+    Equipo, 
+    EquipmentLog, 
+    StatusEquipo, 
+    SeguimientoInstalacion, 
+    GarantiaLicencia, 
+    TipoGarantia
+)
 from app.schemas.equipment import EquipmentCreate, EquipmentUpdate, EquipmentReception
 from app.models.user_models import User
 
@@ -40,10 +46,11 @@ class EquipmentService:
                 detail="No tiene permisos para gestionar este equipo."
             )
 
-        if equipment.estado != "EN_TRANSITO":
+        # Usamos el Enum para la validación
+        if equipment.status != StatusEquipo.EN_TRANSITO:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El equipo no puede ser instalado porque su estado actual es: {equipment.estado}"
+                detail=f"El equipo no puede ser instalado porque su estado actual es: {equipment.status.value}"
             )
 
         evidencia_url = getattr(reception_data, "evidencia_url", None)
@@ -63,31 +70,47 @@ class EquipmentService:
                     detail="Error al guardar la evidencia fotográfica."
                 )
 
-        update_data = {
-            "fecha_recepcion": reception_data.fecha_recepcion,
-            "estado_empaque": reception_data.estado_empaque,
-            "encendio_correctamente": reception_data.encendio_correctamente,
-            "observaciones": reception_data.observaciones,
-            "estado": "INSTALADO",
-            "fecha_instalacion": datetime.now(),
-            "fecha_inicio_garantia": datetime.now()
-        }
-        if evidencia_url:
-            update_data["url_evidencia"] = evidencia_url
+        # 1. Actualizamos el status del equipo
+        equipment.status = StatusEquipo.INSTALADO
 
-        updated_equipment = self.repo.update(db, db_obj=equipment, obj_in=update_data)
+        # 2. Creamos el registro de Seguimiento de Instalación
+        seguimiento = SeguimientoInstalacion(
+            equipo_id=equipment.id,
+            fecha_recepcion=reception_data.fecha_recepcion.date(),
+            estado_empaque=reception_data.estado_empaque,
+            confirmacion_encendido=reception_data.encendio_correctamente,
+            observaciones=reception_data.observaciones,
+            evidencia_url=evidencia_url,
+            fecha_registro=datetime.utcnow()
+        )
+        db.add(seguimiento)
 
+        # 3. Activamos la garantía por defecto (ej. 1 año de hardware)
+        fecha_actual = date.today()
+        garantia = GarantiaLicencia(
+            equipo_id=equipment.id,
+            tipo=TipoGarantia.HARDWARE,
+            fecha_inicio=fecha_actual,
+            fecha_vencimiento=fecha_actual + timedelta(days=365),
+            is_active=True
+        )
+        db.add(garantia)
+
+        # 4. Registramos el log del evento
         new_log = EquipmentLog(
             equipo_id=equipment.id,
             usuario_id=current_user.id,
             evento="INSTALACION_CLIENTE",
             detalles={"observaciones": reception_data.observaciones, "estado_anterior": "EN_TRANSITO"},
-            fecha=datetime.now()
+            fecha=datetime.utcnow()
         )
         db.add(new_log)
+        
+        # Guardamos todos los cambios en cascada
         db.commit()
+        db.refresh(equipment)
 
-        return updated_equipment
+        return equipment
 
     def create_equipment(self, db: Session, equipment_data: EquipmentCreate) -> Equipo:
         """
@@ -102,8 +125,11 @@ class EquipmentService:
         
         # Pydantic v2: model_dump() reemplaza a dict()
         data = equipment_data.model_dump()
-        if "estado" not in data:
-            data["estado"] = "EN_TRANSITO"
+        if "status" not in data or not data["status"]:
+            data["status"] = StatusEquipo.EN_TRANSITO
+        else:
+            # Asegurarnos de que guarde el Enum correcto si se pasó un string
+            data["status"] = StatusEquipo(data["status"])
 
         equipment_model = Equipo(**data)
         return self.repo.create_equipment_from_model(db, equipment_model=equipment_model)
@@ -137,7 +163,6 @@ class EquipmentService:
         """
         equipment = self.get_equipment_by_id(db, equipment_id)
         
-        # Pydantic v2: model_dump() reemplaza a dict()
         update_data = equipment_update.model_dump(exclude_unset=True)
 
         if "numero_serie" in update_data and update_data["numero_serie"] != equipment.numero_serie:
@@ -147,10 +172,14 @@ class EquipmentService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"El número de serie '{update_data['numero_serie']}' ya está en uso por otro equipo."
                 )
+                
+        # Manejo especial si se intenta actualizar el status como string
+        if "status" in update_data and isinstance(update_data["status"], str):
+            update_data["status"] = StatusEquipo(update_data["status"])
 
         return self.repo.update(db, db_obj=equipment, obj_in=update_data)
 
-    def get_equipment_history(self, db: Session, equipment_id: int) -> list: # Tipado moderno
+    def get_equipment_history(self, db: Session, equipment_id: int) -> list: 
         """
         Obtiene la bitácora de eventos (logs) de un equipo específico.
         """
@@ -163,19 +192,17 @@ class EquipmentService:
         
         return equipment.logs
 
-    def get_warranty_alerts(self, db: Session, days_threshold: int = 30) -> list[Equipo]: # Tipado moderno
+    def get_warranty_alerts(self, db: Session, days_threshold: int = 30) -> list[Equipo]: 
         """
         RF: Control de Garantías.
         Identifica y retorna los equipos cuya garantía vencerá en los próximos 'days_threshold' días.
         """
-        WARRANTY_PERIOD_DAYS = 365
-        now = datetime.now()
+        now = date.today()
+        max_expiration_date = now + timedelta(days=days_threshold)
         
-        min_start_date = now - timedelta(days=WARRANTY_PERIOD_DAYS)
-        max_start_date = min_start_date + timedelta(days=days_threshold)
-        
-        return db.query(Equipo).filter(
-            Equipo.fecha_inicio_garantia.isnot(None),
-            Equipo.fecha_inicio_garantia >= min_start_date,
-            Equipo.fecha_inicio_garantia <= max_start_date
+        # Hacemos un JOIN correcto con la tabla GarantiaLicencia
+        return db.query(Equipo).join(Equipo.garantias).filter(
+            GarantiaLicencia.is_active == True,
+            GarantiaLicencia.fecha_vencimiento >= now,
+            GarantiaLicencia.fecha_vencimiento <= max_expiration_date
         ).all()

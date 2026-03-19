@@ -9,18 +9,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.models.license_models import License
+from app.models.license_models import License, LicenseType
 from app.models.user_models import User
 from app.schemas.license import LicenseResponse
 from app.schemas.equipment import EquipmentResponse
 from app.services.equipment_service import EquipmentService
 
 router = APIRouter()
-
-# Instanciamos el servicio de equipos para usarlo en este módulo
 equipment_service = EquipmentService()
 
-# Configuración de almacenamiento (en producción esto iría en config.py)
 UPLOAD_DIR = "uploads/licenses"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -29,7 +26,12 @@ def create_license(
     *,
     db: Session = Depends(deps.get_db),
     equipment_id: int = Form(...),
-    product_key: str | None = Form(None),
+    # --- Agregados los campos obligatorios según tu modelo ---
+    nombre_software: str = Form(...),
+    tipo_licencia: LicenseType = Form(...),
+    fecha_inicio: datetime = Form(...),
+    # ---------------------------------------------------------
+    clave_producto: str | None = Form(None), # Renombrado a clave_producto
     file: UploadFile | None = File(None),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
@@ -37,23 +39,20 @@ def create_license(
     Sube y asigna una licencia de software a un equipo.
     Acepta archivo físico (PDF/Txt) y/o Product Key.
     """
-    if not product_key and not file:
+    if not clave_producto and not file:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Debe proporcionar al menos un archivo o una Product Key."
+            detail="Debe proporcionar al menos un archivo o una Product Key (clave_producto)."
         )
 
-    # 1. Desacoplamiento Correcto: Usamos el servicio de equipos.
-    # Si el equipo no existe, el servicio lanzará el 404 automáticamente.
+    # Verificamos que el equipo exista
     equipment_service.get_equipment_by_id(db=db, equipment_id=equipment_id)
 
     file_path = None
     filename = None
 
-    # 2. Guardar archivo físico si existe
     if file:
         try:
-            # Sanitizar nombre y agregar timestamp para unicidad
             timestamp = int(datetime.now().timestamp())
             filename = file.filename
             safe_filename = f"{equipment_id}_{timestamp}_{filename}"
@@ -67,13 +66,17 @@ def create_license(
                 detail=f"Error al guardar el archivo: {str(e)}"
             )
 
-    # 3. Crear registro en BD
+    # Creación del registro con los nombres EXACTOS de tu modelo de base de datos
     db_license = License(
-        equipo_id=equipment_id,
-        product_key=product_key,
-        file_path=file_path,
+        equipment_id=equipment_id,
+        nombre_software=nombre_software,
+        tipo_licencia=tipo_licencia,
+        fecha_inicio=fecha_inicio.date(), # Convertimos datetime a date
+        clave_producto=clave_producto,
+        archivo_url=file_path,
         filename=filename
     )
+    
     db.add(db_license)
     db.commit()
     db.refresh(db_license)
@@ -90,7 +93,6 @@ def download_license(
     """
     Descarga el archivo de licencia asociado.
     """
-    # Actualizado a sintaxis SQLAlchemy 2.0
     stmt = select(License).where(License.id == license_id)
     license_obj = db.execute(stmt).scalar_one_or_none()
     
@@ -100,19 +102,19 @@ def download_license(
             detail="Licencia no encontrada."
         )
     
-    if not license_obj.file_path or not os.path.exists(license_obj.file_path):
+    # Validamos usando archivo_url en lugar de file_path
+    if not license_obj.archivo_url or not os.path.exists(license_obj.archivo_url):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
             detail="El archivo físico no existe en el servidor."
         )
 
-    # Validar permisos: Descomentar y adaptar cuando la relación con cliente_id esté lista
-    # if current_user.role.nombre == "CLIENTE" and license_obj.equipo.cliente_id != current_user.id:
-    #     raise HTTPException(status_code=403, detail="No tiene permiso para descargar esta licencia")
+    # Si tu filename es nulo (por error histórico), le damos un nombre por defecto
+    download_name = license_obj.filename if license_obj.filename else "licencia.pdf"
 
     return FileResponse(
-        path=license_obj.file_path, 
-        filename=license_obj.filename,
+        path=license_obj.archivo_url, 
+        filename=download_name,
         media_type='application/octet-stream'
     )
 
@@ -125,6 +127,4 @@ def get_warranty_alerts(
     Devuelve equipos cuyas garantías vencen en los próximos 30 días.
     Utiliza la lógica centralizada en EquipmentService.
     """
-    # Corregido: Se eliminó el parámetro por defecto de FastAPI y se usa la instancia global
-    # Corregido: Llamada al servicio con el nombre correcto de la variable
     return equipment_service.get_warranty_alerts(db)

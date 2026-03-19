@@ -42,8 +42,26 @@ class Equipo(Base):
     garantias = relationship("app.models.equipment_models.GarantiaLicencia", back_populates="equipo")
     reportes = relationship("app.models.monitoring_models.ReporteAnomalias", back_populates="equipo")
     logs = relationship("EquipmentLog", back_populates="equipo")
-    log_eventos = relationship("LogEventos", back_populates="equipo")
-    licencias = relationship("app.models.license_models.License", back_populates="equipo")
+    log_eventos = relationship("LogEventos", back_populates="equipo") # Asumo que lo tienes definido en otro lado
+    licencias = relationship("app.models.license_models.License", back_populates="equipo") # Asumo que lo tienes definido
+
+    # --- PROPIEDADES CALCULADAS PARA PYDANTIC ---
+    @property
+    def fecha_instalacion(self):
+        return self.seguimiento.fecha_registro if self.seguimiento else None
+
+    @property
+    def url_evidencia(self):
+        return self.seguimiento.evidencia_url if self.seguimiento else None
+
+    @property
+    def fecha_inicio_garantia(self):
+        if self.garantias:
+            # Retornamos la fecha de la primera garantía activa
+            garantias_activas = [g for g in self.garantias if g.is_active]
+            if garantias_activas:
+                return garantias_activas[0].fecha_inicio
+        return None
 
 
 class SeguimientoInstalacion(Base):
@@ -65,8 +83,8 @@ class GarantiaLicencia(Base):
     id = Column(Integer, primary_key=True, index=True)
     equipo_id = Column(Integer, ForeignKey("equipos.id"))
     tipo = Column(Enum(TipoGarantia))
-    nombre_software = Column(String)
-    licencia_key = Column(String)  # Recuerde cifrar este campo en la capa de servicio
+    nombre_software = Column(String, nullable=True)
+    licencia_key = Column(String, nullable=True)  # Recuerde cifrar este campo en la capa de servicio
     fecha_inicio = Column(Date)
     fecha_vencimiento = Column(Date)
     is_active = Column(Boolean, default=True)
