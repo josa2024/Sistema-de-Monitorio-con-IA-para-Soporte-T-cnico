@@ -8,10 +8,10 @@ api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 
 # Módulo de Usuarios (Perfil, Admin)
-api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(users.router, prefix="/usuarios", tags=["users"])
 
 # Módulo de Equipos (Inventario, Instalación HU-01)
-api_router.include_router(equipment.router, prefix="/equipment", tags=["equipment"])
+api_router.include_router(equipment.router, prefix="/equipo", tags=["equipment"])
 
 # Módulo de WebSockets
 api_router.include_router(ws.router)
@@ -20,7 +20,7 @@ api_router.include_router(ws.router)
 api_router.include_router(tickets.router, prefix="/tickets", tags=["tickets"])
 
 # Módulo de Licencias
-api_router.include_router(licenses.router, prefix="/licenses", tags=["licenses"])
+api_router.include_router(licenses.router, prefix="/licencias", tags=["licenses"])
 
 # Módulo de Dashboard
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])

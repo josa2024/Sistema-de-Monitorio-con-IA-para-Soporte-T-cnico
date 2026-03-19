@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
     # Startup: Todo lo que pongas aquí se ejecuta justo antes de recibir peticiones
     # Garantizamos la ruta exacta que usa inv_service.py para la HU-01
     os.makedirs("uploads/evidence", exist_ok=True)
+    os.makedirs("uploads/tickets", exist_ok=True)
     
     yield # Aquí es donde la aplicación se queda corriendo y sirviendo peticiones
     
