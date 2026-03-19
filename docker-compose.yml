@@ -9,8 +9,28 @@ services:
       - POSTGRES_DB=innotrev_db
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U innotrev_user -d innotrev_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - innotrev-net
+
+  # Intermediario de mensajes para Celery
+  redis:
+    image: redis:7-alpine
+    container_name: innotrev_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - innotrev-net
 
@@ -18,19 +38,56 @@ services:
     container_name: innotrev_backend
     build: ./backend
     restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    # --- AQUÍ ESTABA EL FALTANTE ---
-    environment:
-      - DATABASE_URL=postgresql://innotrev_user:innotrev_password@db:5432/innotrev_db
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # -------------------------------
+    env_file:
+      - ./backend/.env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - innotrev-net
+
+  # Worker que ejecuta las tareas pesadas
+  celery_worker:
+    container_name: innotrev_celery_worker
+    build: ./backend
+    restart: always
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - innotrev-net
+
+  # Cron job que programa las tareas (ej. revisión a medianoche)
+  celery_beat:
+    container_name: innotrev_celery_beat
+    build: ./backend
+    restart: always
+    command: celery -A app.core.celery_app.celery_app beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - innotrev-net
 

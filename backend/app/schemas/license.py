@@ -1,25 +1,39 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from datetime import date, datetime
 from typing import Optional
-from datetime import date
+
+# Asumo que LicenseType es un Enum que definiste en tus modelos
+from app.models.license_models import LicenseType
 
 class LicenseBase(BaseModel):
-    tipo: str
+    """
+    Schema base para la licencia, contiene campos compartidos.
+    """
     nombre_software: str
-    licencia_key: Optional[str] = None
+    tipo_licencia: LicenseType
     fecha_inicio: date
-    fecha_vencimiento: date
+    clave_producto: Optional[str] = None
+    archivo_url: Optional[str] = None
+
+    # Configuración moderna de Pydantic V2 para leer objetos de SQLAlchemy
+    model_config = ConfigDict(from_attributes=True)
+
 
 class LicenseCreate(LicenseBase):
-    equipo_id: int
+    """
+    Schema para la creación de una licencia.
+    Hereda de LicenseBase y añade los campos necesarios para el registro.
+    """
+    equipment_id: int
 
-class LicenseRenewal(BaseModel):
-    fecha_nueva_vencimiento: date
 
+# ¡ESTE ES EL CAMBIO CLAVE! Renombrado de License a LicenseResponse
 class LicenseResponse(LicenseBase):
+    """
+    Schema para representar la licencia en las respuestas de la API.
+    Incluye campos de solo lectura como el ID y las fechas de auditoría.
+    """
     id: int
-    equipo_id: int
-    archivo_url: Optional[str] = None
-    is_active: bool
-
-    class Config:
-        from_attributes = True
+    equipment_id: int
+    fecha_vencimiento: Optional[date] = None
+    fecha_creacion: datetime

@@ -11,7 +11,7 @@ class TicketRepository:
         return ticket
 
     def get_tickets(self, db: Session, skip: int = 0, limit: int = 100, 
-                   equipo_id: Optional[int] = None, cliente_id: Optional[int] = None) -> List[Ticket]:
+                    equipo_id: Optional[int] = None, cliente_id: Optional[int] = None) -> List[Ticket]:
         """Lista tickets con filtros opcionales."""
         query = db.query(Ticket)
         if equipo_id:
@@ -34,6 +34,8 @@ class TicketRepository:
         return db_obj
 
     def create_comment(self, db: Session, comment: ComentarioTicket) -> ComentarioTicket:
+    def create_comment(self, db: Session, comment: Comment) -> Comment:
+        """Crea un nuevo comentario en un ticket."""
         db.add(comment)
         db.commit()
         db.refresh(comment)
@@ -42,3 +44,6 @@ class TicketRepository:
     def get_comments(self, db: Session, ticket_id: int) -> List[ComentarioTicket]:
         # Usamos fecha_creacion en lugar de created_at
         return db.query(ComentarioTicket).filter(ComentarioTicket.ticket_id == ticket_id).order_by(ComentarioTicket.fecha_creacion.asc()).all()
+    def get_comments(self, db: Session, ticket_id: int) -> List[Comment]:
+        """Obtiene los comentarios de un ticket ordenados por fecha de creación."""
+        return db.query(Comment).filter(Comment.ticket_id == ticket_id).order_by(Comment.fecha_creacion.asc()).all()
