@@ -29,9 +29,9 @@ class Ticket(Base):
     
     fecha_agendada = Column(DateTime(timezone=True), nullable=True) 
     
-    cliente_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False) 
+    cliente_id = Column(Integer, ForeignKey("users.id"), nullable=False) 
     equipo_id = Column(Integer, ForeignKey("equipos.id"), nullable=False)
-    tecnico_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    tecnico_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -52,7 +52,7 @@ class ComentarioTicket(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
-    autor_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False) 
+    autor_id = Column(Integer, ForeignKey("users.id"), nullable=False) 
     contenido = Column(Text, nullable=False)
     fecha_creacion = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -66,7 +66,7 @@ class TicketLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
-    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     accion = Column(String, nullable=False)
     detalles = Column(JSON, nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.now)
@@ -81,7 +81,7 @@ class TicketAttachment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
-    uploaded_by_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     file_name = Column(String, nullable=False) # Nombre original del archivo
     file_path = Column(String, nullable=False) # Ruta en el servidor/S3
     content_type = Column(String, nullable=True) # Tipo MIME (ej. image/png)

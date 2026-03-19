@@ -15,9 +15,6 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 from datetime import datetime
 
-# ELIMINADA: Quitamos la clase Role duplicada que estaba aquí.
-# Ahora la única fuente de verdad será app/models/roles.py
-
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -36,5 +33,5 @@ class User(Base):
     equipos = relationship("app.models.equipment_models.Equipo", back_populates="cliente")
     reportes = relationship("app.models.monitoring_models.ReporteAnomalias", back_populates="cliente")
     
-    # ¡AQUÍ ESTÁ LA CORRECCIÓN! Actualizamos la ruta a app.models.ticket.Comment
-    comments = relationship("app.models.ticket.Comment", back_populates="usuario")
+    # CORRECCIÓN: Actualizamos la relación a ComentarioTicket
+    comentarios = relationship("app.models.ticket.ComentarioTicket")
