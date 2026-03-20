@@ -1,7 +1,7 @@
 import os
 import shutil
 from datetime import datetime, timedelta
-from fastapi import UploadFile, HTTPException, status
+from fastapi import UploadFile, HTTPException, status as http_status
 from sqlalchemy.orm import Session
 
 from app.repositories.equipment_repo import EquipmentRepository
@@ -21,7 +21,7 @@ class EquipmentService:
         equipment_id: int,
         reception_data: EquipmentReception,
         current_user: User,
-        file: UploadFile | None = None # Tipado moderno
+        file: UploadFile | None = None
     ) -> Equipo:
         """
         HU-01: Procesa el reporte de instalación manual del cliente.
@@ -30,20 +30,21 @@ class EquipmentService:
         equipment = self.repo.get_by_id(db, equipment_id)
         if not equipment:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Equipo con ID {equipment_id} no encontrado."
             )
 
         if equipment.cliente_id != current_user.id:
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="No tiene permisos para gestionar este equipo."
             )
 
-        if equipment.estado != "EN_TRANSITO":
+        # CORRECCIÓN: Usar status en lugar de estado
+        if equipment.status != "EN_TRANSITO":
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"El equipo no puede ser instalado porque su estado actual es: {equipment.estado}"
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=f"El equipo no puede ser instalado porque su estado actual es: {equipment.status}"
             )
 
         evidencia_url = getattr(reception_data, "evidencia_url", None)
@@ -59,7 +60,7 @@ class EquipmentService:
                 evidencia_url = file_path
             except Exception as e:
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Error al guardar la evidencia fotográfica."
                 )
 
@@ -68,7 +69,7 @@ class EquipmentService:
             "estado_empaque": reception_data.estado_empaque,
             "encendio_correctamente": reception_data.encendio_correctamente,
             "observaciones": reception_data.observaciones,
-            "estado": "INSTALADO",
+            "status": "INSTALADO", # CORRECCIÓN: Usar status
             "fecha_instalacion": datetime.now(),
             "fecha_inicio_garantia": datetime.now()
         }
@@ -96,19 +97,24 @@ class EquipmentService:
         existing_equipment = self.repo.get_by_serial(db, serial=equipment_data.numero_serie)
         if existing_equipment:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
+                status_code=http_status.HTTP_409_CONFLICT,
                 detail=f"Ya existe un equipo registrado con el número de serie '{equipment_data.numero_serie}'."
             )
         
-        # Pydantic v2: model_dump() reemplaza a dict()
         data = equipment_data.model_dump()
-        if "estado" not in data:
-            data["estado"] = "EN_TRANSITO"
+        
+        # CORRECCIÓN: Usar status en lugar de estado
+        if "status" not in data:
+            data["status"] = "EN_TRANSITO"
+            
+        # Si por alguna razón Pydantic dejó "estado" colado, lo borramos para que SQLAlchemy no explote
+        if "estado" in data:
+            del data["estado"]
 
         equipment_model = Equipo(**data)
         return self.repo.create_equipment_from_model(db, equipment_model=equipment_model)
 
-    def get_all_equipments(self, db: Session, skip: int = 0, limit: int = 100) -> list[Equipo]: # Tipado moderno
+    def get_all_equipments(self, db: Session, skip: int = 0, limit: int = 100) -> list[Equipo]:
         """
         Lista todos los equipos con paginación.
         """
@@ -121,7 +127,7 @@ class EquipmentService:
         equipment = self.repo.get_by_id(db, equipment_id)
         if not equipment:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Equipo con ID {equipment_id} no encontrado."
             )
         return equipment
@@ -137,33 +143,32 @@ class EquipmentService:
         """
         equipment = self.get_equipment_by_id(db, equipment_id)
         
-        # Pydantic v2: model_dump() reemplaza a dict()
         update_data = equipment_update.model_dump(exclude_unset=True)
 
         if "numero_serie" in update_data and update_data["numero_serie"] != equipment.numero_serie:
             existing = self.repo.get_by_serial(db, serial=update_data["numero_serie"])
             if existing and existing.id != equipment_id:
                 raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
+                    status_code=http_status.HTTP_409_CONFLICT,
                     detail=f"El número de serie '{update_data['numero_serie']}' ya está en uso por otro equipo."
                 )
 
         return self.repo.update(db, db_obj=equipment, obj_in=update_data)
 
-    def get_equipment_history(self, db: Session, equipment_id: int) -> list: # Tipado moderno
+    def get_equipment_history(self, db: Session, equipment_id: int) -> list:
         """
         Obtiene la bitácora de eventos (logs) de un equipo específico.
         """
         equipment = self.repo.get_by_id(db, equipment_id)
         if not equipment:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=http_status.HTTP_404_NOT_FOUND,
                 detail=f"Equipo con ID {equipment_id} no encontrado."
             )
         
         return equipment.logs
 
-    def get_warranty_alerts(self, db: Session, days_threshold: int = 30) -> list[Equipo]: # Tipado moderno
+    def get_warranty_alerts(self, db: Session, days_threshold: int = 30) -> list[Equipo]:
         """
         RF: Control de Garantías.
         Identifica y retorna los equipos cuya garantía vencerá en los próximos 'days_threshold' días.

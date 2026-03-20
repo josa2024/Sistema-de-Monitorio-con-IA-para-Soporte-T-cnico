@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Download, Store, CreditCard, AlertTriangle, ShieldAlert, Video } from 'lucide-react';import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Download, Store, CreditCard, AlertTriangle, ShieldAlert, Video } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import Chatbot from './Chatbot';
 import Login from './Login';
 
@@ -35,9 +36,9 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
   const fetchData = async () => {
     try {
       const token = localStorage.getItem('token');
-      const resEq = await fetch('http://127.0.0.1:8000/api/v1/equipo/?t=' + Date.now(), { headers: { 'Authorization': `Bearer ${token}` } });
+      const resEq = await fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), { headers: { 'Authorization': `Bearer ${token}` } });
       if (resEq.ok) setEquipmentList(await resEq.json());
-      const resTk = await fetch('http://127.0.0.1:8000/api/v1/tickets/?t=' + Date.now(), { headers: { 'Authorization': `Bearer ${token}` } });
+      const resTk = await fetch('http://localhost:8000/api/v1/tickets/?t=' + Date.now(), { headers: { 'Authorization': `Bearer ${token}` } });
       if (resTk.ok) setTickets(await resTk.json());
     } catch (error) { console.error(error); }
   };
@@ -45,23 +46,75 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
   const handleSolicitar = async (modelo) => {
     setIsProcessing(true);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/v1/equipo/solicitar', {
-        method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modelo })
+      const token = localStorage.getItem('token');
+      
+      // 1. Extraemos el ID del usuario que tiene la sesión iniciada
+      let userId = 2; // ID de respaldo
+      try {
+        const payloadDecoded = JSON.parse(atob(token.split('.')[1]));
+        userId = parseInt(payloadDecoded.id || payloadDecoded.sub) || 2;
+      } catch (e) { console.warn("No se pudo leer el ID del token"); }
+
+      // 2. Generamos un Número de Serie temporal para identificar que es una solicitud
+      const snTemporal = 'REQ-' + Math.random().toString(36).substr(2, 7).toUpperCase();
+
+      // 3. Armamos el paquete exacto sin 'nombre' y con 'status'
+      const payload = {
+          modelo: modelo,
+          numero_serie: snTemporal,
+          cliente_id: userId,
+          status: "SOLICITADO"
+      };
+
+      const res = await fetch('http://localhost:8000/api/v1/equipo/', {
+        method: 'POST', 
+        headers: { 
+            'Authorization': `Bearer ${token}`, 
+            'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify(payload)
       });
-      if (res.ok) { alert(`Solicitud de ${modelo} enviada a Innotrev.`); fetchData(); setCurrentView('recepcion'); }
-    } catch (error) { console.error(error); } finally { setIsProcessing(false); }
+
+      if (res.ok) { 
+          alert(`Solicitud de ${modelo} enviada a Innotrev.`); 
+          fetchData(); 
+          setCurrentView('recepcion'); 
+      } else {
+          const errorData = await res.json();
+          console.error("Detalle del error:", errorData);
+          alert("Hubo un error al procesar la solicitud.");
+      }
+    } catch (error) { 
+        console.error(error); 
+    } finally { 
+        setIsProcessing(false); 
+    }
   };
 
   const handlePagar = async (e) => {
     e.preventDefault();
     setIsProcessing(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/equipo/${selectedEq.id}/pagar`, {
-        method: 'PATCH', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      const res = await fetch(`http://localhost:8000/api/v1/equipo/${selectedEq.id}`, {
+        method: 'PUT', 
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: "EN_TRANSITO" })
       });
-      if (res.ok) { setIsPaymentModalOpen(false); alert("✅ Pago exitoso. El equipo será despachado."); fetchData(); }
-    } catch (error) { console.error(error); } finally { setIsProcessing(false); }
+      if (res.ok) { 
+        setIsPaymentModalOpen(false); 
+        alert("✅ Pago exitoso. El equipo será despachado."); 
+        fetchData(); 
+      } else {
+        alert("Hubo un error al procesar el pago.");
+      }
+    } catch (error) { 
+      console.error(error); 
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
 
   const handleConfirmarRecepcion = async (e) => {
@@ -69,19 +122,19 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
     setIsProcessing(true);
     try {
       const formData = new FormData(); formData.append('file', file); formData.append('estado_empaque', formRecepcion.estado_empaque); formData.append('confirmacion_encendido', formRecepcion.confirmacion_encendido); formData.append('notas_recepcion', formRecepcion.notas);
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/equipo/${selectedEq.id}/recepcion`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
+      const res = await fetch(`http://localhost:8000/api/v1/equipo/${selectedEq.id}/recepcion`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
       if (res.ok) { setIsModalOpen(false); fetchData(); setCurrentView('garantias'); }
     } catch (error) { console.error(error); } finally { setIsProcessing(false); }
   };
 
   const verLicencias = async (eq) => {
     setSelectedEqLicencias(eq);
-    const res = await fetch(`http://127.0.0.1:8000/api/v1/licencias/equipo/${eq.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+    const res = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${eq.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
     if (res.ok) setLicenciasCliente(await res.json());
   };
 
   const handleDownloadCertificado = async (licenseId, nombre) => {
-    const res = await fetch(`http://127.0.0.1:8000/api/v1/licencias/descargar/${licenseId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+    const res = await fetch(`http://localhost:8000/api/v1/licencias/descargar/${licenseId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
     const blob = await res.blob(); const a = document.createElement('a'); a.href = window.URL.createObjectURL(blob); a.download = `${nombre}.pdf`; document.body.appendChild(a); a.click(); a.remove();
   };
 
@@ -128,7 +181,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
         {showLoginModal && !isAuthenticated && <Login onLoginSuccess={(t, r, n) => { setShowLoginModal(false); onLoginSuccess(t, r, n); }} onClose={() => setShowLoginModal(false)} />}
       </AnimatePresence>
 
-      {/* AQUÍ ESTÁ LA MAGIA: Cuando es Support, congelamos la altura de la página (h-[calc(100dvh-80px)]) */}
       <main className={`flex-1 flex flex-col ${currentView === 'support' ? 'h-[calc(100dvh-80px)] max-h-[calc(100dvh-80px)] overflow-hidden' : 'overflow-y-auto'}`}>
         
         {currentView === 'home' && (
@@ -217,7 +269,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
           </motion.div>
         )}
 
-        {/* VISTA: CHATBOT DE SOPORTE (Congelado y Flotante) */}
+        {/* VISTA: CHATBOT DE SOPORTE */}
         {currentView === 'support' && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-6 flex flex-col min-h-0">
              {!isAuthenticated && (
@@ -232,7 +284,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                 <button onClick={() => setShowLoginModal(true)} className="bg-white text-[#0b1437] px-6 py-3 rounded-xl text-sm font-black shadow-sm whitespace-nowrap hover:bg-blue-50 transition-colors">Iniciar Sesión</button>
               </div>
             )}
-            {/* Contenedor estricto del Chatbot con min-h-0 */}
             <div className="flex-1 min-h-0 w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col">
               <Chatbot 
                 mode="cliente" 
@@ -298,8 +349,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
             </div>
             {tickets.length > 0 ? (
               <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-
-
                 <table className="w-full text-left">
                   <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs uppercase font-black tracking-wider">
                     <tr>
@@ -326,7 +375,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                             {t.status === 'ABIERTO' ? 'Pendiente' : 'Atendido'}
                           </span>
                         </td>
-                        {/* NUEVA COLUMNA DE VIDEOLLAMADA */}
                         <td className="px-8 py-5">
                           {t.fecha_agendada ? (
                             <div className="flex items-center gap-3">
@@ -342,8 +390,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                     ))}
                   </tbody>
                 </table>
-
-
               </div>
             ) : (
               <div className="bg-white p-16 rounded-3xl shadow-sm border border-slate-200 text-center">
@@ -360,7 +406,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
         {/* MODAL DE PAGO SIMULADO */}
         {isPaymentModalOpen && (
            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b1437]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-             {/* ... (Modal de Pago Intacto) ... */}
              <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200">
                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                  <h2 className="font-black text-[#0b1437] text-xl flex items-center gap-2"><CreditCard className="text-blue-600" size={22}/> Checkout Seguro</h2>

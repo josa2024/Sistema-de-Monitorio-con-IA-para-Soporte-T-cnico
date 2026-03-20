@@ -1,34 +1,26 @@
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 
 class EquipmentBase(BaseModel):
-    nombre: str
     modelo: str
     numero_serie: str
-    ubicacion: Optional[str] = None
     cliente_id: int
 
 class EquipmentCreate(EquipmentBase):
-    # El estado por defecto se maneja en el servicio, pero permitimos enviarlo si es necesario
-    estado: Optional[str] = "EN_TRANSITO"
+    status: Optional[str] = "EN_TRANSITO"
 
 class EquipmentUpdate(BaseModel):
-    nombre: Optional[str] = None
     modelo: Optional[str] = None
     numero_serie: Optional[str] = None
-    ubicacion: Optional[str] = None
     cliente_id: Optional[int] = None
-    estado: Optional[str] = None
-    # Otros campos técnicos que se puedan actualizar
+    status: Optional[str] = None
 
 class EquipmentResponse(EquipmentBase):
     id: int
-    estado: str
-    fecha_instalacion: Optional[datetime] = None
-    fecha_inicio_garantia: Optional[datetime] = None
-    url_evidencia: Optional[str] = None
+    status: str
+    fecha_salida_sucursal: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -45,9 +37,8 @@ class EquipmentReception(BaseModel):
 class LogResponse(BaseModel):
     id: int
     equipo_id: int
-    # usuario_id puede ser opcional si el sistema lo permite
     usuario_id: Optional[int] = None 
-    evento: str  # En el modelo se llama 'evento', asegúrate de coincidir
+    evento: str
     detalles: Optional[Dict[str, Any]] = None
     fecha: datetime
 
