@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from app.models.user_models import User, Role
+from app.models.user_models import User
+from app.models.roles import Role  # <--- Esta es la línea corregida
 from app.core.security import get_password_hash
 
 class UserRepository:

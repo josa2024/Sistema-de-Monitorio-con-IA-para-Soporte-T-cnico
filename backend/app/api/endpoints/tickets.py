@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api import deps
-from app.models.ticket import Ticket, TicketLog, Comment
+from app.models.ticket import Ticket, TicketLog, ComentarioTicket
 from app.models.user_models import User
 from app.schemas.comment import CommentCreate, CommentResponse
 from app.schemas.ticket import TicketCreate, TicketUpdate, TicketResponse, TicketStatus, TicketLogResponse

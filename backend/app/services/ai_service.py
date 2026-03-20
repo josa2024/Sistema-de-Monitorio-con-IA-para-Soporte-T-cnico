@@ -12,7 +12,7 @@ class AIService:
         print("🔧 Inicializando Cerebro IA (Versión Docker + Prioridad + Streaming)...")
         
         # 1. CONEXIÓN A DOCKER
-        ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_url = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
         print(f"📡 Conectando a Ollama en: {ollama_url}")
         
         self.llm = ChatOllama(model="llama3.2", temperature=0.1, base_url=ollama_url)

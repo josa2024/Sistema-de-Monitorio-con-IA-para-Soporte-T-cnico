@@ -64,7 +64,7 @@ const Chatbot = ({
 
     try {
       const token = localStorage.getItem('token') || ''; 
-      const response = await fetch('http://127.0.0.1:8000/api/v1/ai/chat', {
+      const response = await fetch('http://localhost:8000/api/v1/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ message: userMsg.text })
@@ -130,7 +130,7 @@ const Chatbot = ({
 
     try {
       const token = localStorage.getItem('token') || ''; 
-      const eqResponse = await fetch('http://127.0.0.1:8000/api/v1/equipo/', { headers: { 'Authorization': `Bearer ${token}` } });
+      const eqResponse = await fetch('http://localhost:8000/api/v1/equipo/', { headers: { 'Authorization': `Bearer ${token}` } });
       const equipos = await eqResponse.json();
 
       if (!equipos || equipos.length === 0) {
@@ -145,7 +145,7 @@ const Chatbot = ({
         categoria: category 
       };
 
-      const response = await fetch('http://127.0.0.1:8000/api/v1/tickets/', {
+      const response = await fetch('http://localhost:8000/api/v1/tickets/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(ticketData)

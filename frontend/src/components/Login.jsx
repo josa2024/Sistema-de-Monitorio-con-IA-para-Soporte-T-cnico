@@ -28,7 +28,7 @@ const Login = ({ onLoginSuccess, onClose }) => {
       if (!recaptchaChecked) { setError('Por favor, verifica el reCAPTCHA.'); setIsLoading(false); return; }
       
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/v1/register', {
+        const response = await fetch('http://localhost:8000/api/v1/auth/register', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nombre: formData.nombre, apellidos: formData.apellidos, direccion: formData.direccion, telefono: formData.telefono, email: formData.email, password: formData.password })
         });
@@ -43,7 +43,7 @@ const Login = ({ onLoginSuccess, onClose }) => {
         formDataUrlEncoded.append('username', formData.email);
         formDataUrlEncoded.append('password', formData.password);
 
-        const response = await fetch('http://127.0.0.1:8000/api/v1/login/access-token', {
+        const response = await fetch('http://localhost:8000/api/v1/auth/login/access-token', {
           method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formDataUrlEncoded
         });
         const data = await response.json();
