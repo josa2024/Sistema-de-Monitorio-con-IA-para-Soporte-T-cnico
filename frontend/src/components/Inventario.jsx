@@ -24,8 +24,8 @@ const Inventario = () => {
       const resEq = await fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), { headers });
       if (resEq.ok) setEquipmentList(await resEq.json());
       
-      // CORRECCIÓN: Llamamos a la ruta oficial de usuarios
-      const resCl = await fetch('http://localhost:8000/api/v1/users/?t=' + Date.now(), { headers });
+      // CAMBIO AQUÍ: de /users/ a /usuarios/
+      const resCl = await fetch('http://localhost:8000/api/v1/usuarios/?t=' + Date.now(), { headers });
       if (resCl.ok) setClientsList(await resCl.json());
     } catch (e) { console.error(e); }
   };

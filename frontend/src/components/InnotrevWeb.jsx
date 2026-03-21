@@ -121,11 +121,53 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
     e.preventDefault();
     setIsProcessing(true);
     try {
-      const formData = new FormData(); formData.append('file', file); formData.append('estado_empaque', formRecepcion.estado_empaque); formData.append('confirmacion_encendido', formRecepcion.confirmacion_encendido); formData.append('notas_recepcion', formRecepcion.notas);
-      const res = await fetch(`http://localhost:8000/api/v1/equipo/${selectedEq.id}/recepcion`, { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
-      if (res.ok) { setIsModalOpen(false); fetchData(); setCurrentView('garantias'); }
-    } catch (error) { console.error(error); } finally { setIsProcessing(false); }
+      const formData = new FormData(); 
+      
+      // 1. SOLO adjuntamos la foto si el usuario realmente seleccionó una
+      if (file) {
+        formData.append('file', file); 
+      }
+      
+      // 2. Enviamos los campos de texto
+      formData.append('estado_empaque', formRecepcion.estado_empaque); 
+      
+      // 3. Forzamos el booleano a texto ("true" / "false") para que FastAPI no se confunda
+      formData.append('encendio_correctamente', formRecepcion.confirmacion_encendido ? "true" : "false"); 
+      
+      // 4. SOLO enviamos observaciones si el usuario escribió algo
+      if (formRecepcion.notas) {
+        formData.append('observaciones', formRecepcion.notas);
+      }
+      
+      // 5. Enviamos la fecha de recepción
+      formData.append('fecha_recepcion', new Date().toISOString());
+
+      const res = await fetch(`http://localhost:8000/api/v1/equipo/${selectedEq.id}/reception`, { 
+        method: 'POST', 
+        headers: { 
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            // OJO: NUNCA se pone 'Content-Type' cuando se usa FormData, el navegador lo hace solo.
+        }, 
+        body: formData 
+      });
+      
+      if (res.ok) { 
+        setIsModalOpen(false); 
+        fetchData(); 
+        setCurrentView('garantias'); 
+      } else {
+        const errorData = await res.json();
+        console.error("Detalle del error 422:", errorData);
+        alert("Hubo un error al confirmar la recepción. Revisa la consola.");
+      }
+    } catch (error) { 
+      console.error(error); 
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
+
+
 
   const verLicencias = async (eq) => {
     setSelectedEqLicencias(eq);

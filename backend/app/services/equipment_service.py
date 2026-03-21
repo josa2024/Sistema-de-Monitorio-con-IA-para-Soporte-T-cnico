@@ -34,7 +34,8 @@ class EquipmentService:
                 detail=f"Equipo con ID {equipment_id} no encontrado."
             )
 
-        if equipment.cliente_id != current_user.id:
+        # CORRECCIÓN: Permitir si es el dueño O si es el ADMIN haciendo pruebas
+        if equipment.cliente_id != current_user.id and current_user.role.nombre != "ADMIN":
             raise HTTPException(
                 status_code=http_status.HTTP_403_FORBIDDEN,
                 detail="No tiene permisos para gestionar este equipo."

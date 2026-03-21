@@ -105,10 +105,11 @@ def register_equipment_reception(
 
     - **Acceso:** Solo para usuarios con rol `CLIENTE`.
     """
-    if not current_user.role or current_user.role.nombre != RoleEnum.CLIENTE.value:
+    # CORRECCIÓN: Permitimos a CLIENTE y también a ADMIN hacer la recepción para pruebas
+    if not current_user.role or current_user.role.nombre not in [RoleEnum.CLIENTE.value, RoleEnum.ADMIN.value]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado: Esta acción solo es permitida para clientes.",
+            detail="Acceso denegado: Esta acción solo es permitida para clientes o administradores.",
         )
         
     if file and file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
