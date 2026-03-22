@@ -14,13 +14,19 @@ const HistorialUsuarios = () => {
     const fetchAllData = async () => {
       try {
         const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+        // CORRECCIÓN: Rutas ajustadas a localhost y a /usuarios en lugar de /clientes
         const [resCl, resEq, resTk] = await Promise.all([
-          fetch('http://127.0.0.1:8000/api/v1/clientes?t=' + Date.now(), { headers }),
-          fetch('http://127.0.0.1:8000/api/v1/equipo/?t=' + Date.now(), { headers }),
-          fetch('http://127.0.0.1:8000/api/v1/tickets/?t=' + Date.now(), { headers })
+          fetch('http://localhost:8000/api/v1/usuarios/?t=' + Date.now(), { headers }),
+          fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), { headers }),
+          fetch('http://localhost:8000/api/v1/tickets/?t=' + Date.now(), { headers })
         ]);
         
-        if (resCl.ok) setClients(await resCl.json());
+        // Filtramos para asegurarnos de que la tabla solo muestre a los que tienen rol de CLIENTE
+        if (resCl.ok) {
+            const allUsers = await resCl.json();
+            const onlyClients = allUsers.filter(u => u.role_id === 2); // 2 es Cliente en tu BD
+            setClients(onlyClients);
+        }
         if (resEq.ok) setEquipments(await resEq.json());
         if (resTk.ok) setTickets(await resTk.json());
       } catch (error) {
@@ -37,7 +43,7 @@ const HistorialUsuarios = () => {
     c.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Función mágica para armar la línea de tiempo del cliente
+  // Función para armar la línea de tiempo del cliente
   const buildTimeline = (clientId) => {
     let events = [];
     const clientEqs = equipments.filter(eq => eq.cliente_id === clientId);
