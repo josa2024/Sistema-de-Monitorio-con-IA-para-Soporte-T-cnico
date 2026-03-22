@@ -5,8 +5,7 @@ from fastapi import UploadFile, HTTPException, status as http_status
 from sqlalchemy.orm import Session
 
 from app.repositories.equipment_repo import EquipmentRepository
-from app.models.equipment_models import Equipo
-from app.models.equipment_models import EquipmentLog
+from app.models.equipment_models import Equipo, EquipmentLog, StatusEquipo  # <-- IMPORTAMOS StatusEquipo
 from app.schemas.equipment import EquipmentCreate, EquipmentUpdate, EquipmentReception
 from app.models.user_models import User
 
@@ -22,10 +21,6 @@ class EquipmentService:
         current_user: User,
         file: UploadFile | None = None
     ) -> Equipo:
-        """
-        HU-01: Procesa el reporte de instalación manual del cliente.
-        Valida el estado actual, guarda evidencia y activa la garantía.
-        """
         equipment = self.repo.get_by_id(db, equipment_id)
         if not equipment:
             raise HTTPException(
@@ -33,17 +28,13 @@ class EquipmentService:
                 detail=f"Equipo con ID {equipment_id} no encontrado."
             )
 
-        # LLAVE MAESTRA: Validamos al Administrador directamente por su correo para no fallar
-        if equipment.cliente_id != current_user.id and current_user.email != "admin@innotrev.com":
-            raise HTTPException(
-                status_code=http_status.HTTP_403_FORBIDDEN,
-                detail="No tiene permisos para gestionar este equipo."
-            )
+        # CORRECCIÓN DE ENUM: Extraemos el valor en texto para compararlo sin fallas
+        current_status = equipment.status.value if hasattr(equipment.status, 'value') else equipment.status
 
-        if equipment.status != "EN_TRANSITO":
+        if current_status != "EN_TRANSITO":
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
-                detail=f"El equipo no puede ser instalado porque su estado actual es: {equipment.status}"
+                detail=f"El equipo no puede ser instalado porque su estado actual es: {current_status}"
             )
 
         evidencia_url = getattr(reception_data, "evidencia_url", None)
@@ -68,7 +59,7 @@ class EquipmentService:
             "estado_empaque": reception_data.estado_empaque,
             "encendio_correctamente": reception_data.encendio_correctamente,
             "observaciones": reception_data.observaciones,
-            "status": "INSTALADO",
+            "status": StatusEquipo.INSTALADO, # <-- Guardamos usando el Enum nativo
             "fecha_instalacion": datetime.now(),
             "fecha_inicio_garantia": datetime.now()
         }
@@ -100,7 +91,7 @@ class EquipmentService:
         data = equipment_data.model_dump()
         
         if "status" not in data:
-            data["status"] = "EN_TRANSITO"
+            data["status"] = StatusEquipo.EN_TRANSITO # <-- Usamos el Enum nativo
             
         if "estado" in data:
             del data["estado"]
@@ -120,14 +111,8 @@ class EquipmentService:
             )
         return equipment
 
-    def update_equipment(
-        self,
-        db: Session,
-        equipment_id: int,
-        equipment_update: EquipmentUpdate
-    ) -> Equipo:
+    def update_equipment(self, db: Session, equipment_id: int, equipment_update: EquipmentUpdate) -> Equipo:
         equipment = self.get_equipment_by_id(db, equipment_id)
-        
         update_data = equipment_update.model_dump(exclude_unset=True)
 
         if "numero_serie" in update_data and update_data["numero_serie"] != equipment.numero_serie:
@@ -137,6 +122,9 @@ class EquipmentService:
                     status_code=http_status.HTTP_409_CONFLICT,
                     detail=f"El número de serie '{update_data['numero_serie']}' ya está en uso por otro equipo."
                 )
+
+        if "status" in update_data and isinstance(update_data["status"], str):
+             update_data["status"] = StatusEquipo(update_data["status"])
 
         return self.repo.update(db, db_obj=equipment, obj_in=update_data)
 
