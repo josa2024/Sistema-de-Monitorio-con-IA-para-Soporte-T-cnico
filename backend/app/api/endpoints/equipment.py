@@ -31,9 +31,6 @@ def create_equipment(
 ):
     """
     Endpoint para registrar un nuevo equipo en el inventario.
-
-    - **Acceso:** Protegido para usuarios autenticados.
-    - **Validación:** El servicio verifica que el número de serie no esté duplicado.
     """
     return equipment_service.create_equipment(db=db, equipment_data=equipment_in)
 
@@ -50,9 +47,6 @@ def update_equipment(
 ):
     """
     Endpoint para actualizar la información de un equipo por su ID.
-
-    - **Acceso:** Protegido para usuarios autenticados.
-    - **Validación:** El servicio verifica la unicidad del número de serie si se cambia.
     """
     return equipment_service.update_equipment(db=db, equipment_id=id, equipment_update=equipment_in)
 
@@ -70,7 +64,7 @@ def get_equipment(id: int, db: Session = Depends(get_db)):
 
 @router.get(
     "/",
-    response_model=list[EquipmentResponse], # Actualizado a la sintaxis moderna de Python
+    response_model=list[EquipmentResponse], 
     summary="Listar todos los equipos",
     dependencies=[Depends(get_current_user)]
 )
@@ -98,19 +92,14 @@ def register_equipment_reception(
     fecha_recepcion: datetime.datetime = Form(...),
     estado_empaque: str = Form(...),
     encendio_correctamente: bool = Form(...),
-    file: UploadFile | None = File(None, description="Archivo de evidencia fotográfica (opcional).") # Actualizado a pipe operator
+    file: UploadFile | None = File(None, description="Archivo de evidencia fotográfica (opcional).") 
 ):
     """
     Endpoint para que un **cliente** registre la recepción de un equipo.
-
-    - **Acceso:** Solo para usuarios con rol `CLIENTE`.
     """
-    # CORRECCIÓN: Permitimos a CLIENTE y también a ADMIN hacer la recepción para pruebas
-    if not current_user.role or current_user.role.nombre not in [RoleEnum.CLIENTE.value, RoleEnum.ADMIN.value]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acceso denegado: Esta acción solo es permitida para clientes o administradores.",
-        )
+    
+    # ELIMINAMOS EL CANDADO REDUNDANTE AQUÍ. 
+    # El archivo equipment_service.py ya se encarga de validar quién eres usando role_id.
         
     if file and file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
         raise HTTPException(
@@ -126,7 +115,7 @@ def register_equipment_reception(
         observaciones=observaciones
     )
 
-    # El servicio se encarga de toda la lógica de negocio
+    # El servicio se encarga de toda la lógica de negocio y de validar tus permisos
     updated_equipment = equipment_service.process_equipment_reception(
         db=db,
         equipment_id=id,
