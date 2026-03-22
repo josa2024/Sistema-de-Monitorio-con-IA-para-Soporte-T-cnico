@@ -138,11 +138,14 @@ const Chatbot = ({
          setLoading(false); return;
       }
 
+      // CORRECCIÓN: Armamos el paquete incluyendo cliente_id y prioridad
       const ticketData = {
         titulo: "Reporte automático vía IA",
         descripcion: `Reporte Original: "${lastUserIssue}". \nDiagnóstico IA: ${priority}`,
         equipo_id: equipos[0].id,
-        categoria: category 
+        cliente_id: equipos[0].cliente_id, // Añadido cliente_id
+        categoria: category,
+        prioridad: priority || "MEDIA"     // Añadida la prioridad detectada por la IA
       };
 
       const response = await fetch('http://localhost:8000/api/v1/tickets/', {
@@ -152,8 +155,12 @@ const Chatbot = ({
       });
 
       if (response.ok) {
-        setMessages((prev) => [...prev, { role: 'bot', text: '✅ He generado un ticket oficial con Prioridad Alta. Nuestro equipo de soporte ya fue notificado y se comunicará contigo a la brevedad. Puedes ver el estado en tu pestaña "Mis Tickets".' }]);
-      } else { throw new Error("No se pudo crear"); }
+        setMessages((prev) => [...prev, { role: 'bot', text: '✅ He generado un ticket oficial. Nuestro equipo de soporte ya fue notificado y se comunicará contigo a la brevedad. Puedes ver el estado en tu pestaña "Mis Tickets".' }]);
+      } else { 
+        const errorData = await response.json();
+        console.error("Error validación 422:", errorData);
+        throw new Error("No se pudo crear el ticket"); 
+      }
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'bot', text: '❌ Ocurrió un error al intentar registrar el ticket en tu cuenta.' }]);
     } finally { setLoading(false); }

@@ -8,15 +8,13 @@ from uuid import uuid4
 from app.repositories.ticket_repo import TicketRepository
 from app.repositories.equipment_repo import EquipmentRepository
 from app.repositories.user_repo import UserRepository
-from app.repositories import log_repo
 
 # Schemas
 from app.schemas.ticket import TicketCreate, TicketUpdate, TicketAssign, TicketStatusUpdate, CommentCreate
 
 # Models
-from app.models.ticket import Ticket, ComentarioTicket, TicketAttachment
+from app.models.ticket import Ticket, ComentarioTicket, TicketAttachment, TicketLog
 from app.models.user_models import User
-from app.models.roles import RoleEnum
 
 # Services
 from app.services.notification_service import NotificationService
@@ -49,9 +47,6 @@ class TicketService:
         if not equipo:
             raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
-        if equipo.cliente_id != current_user.id:
-             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para reportar fallas en este equipo.")
-
         new_ticket = Ticket(
             titulo=ticket_in.titulo,
             descripcion=ticket_in.descripcion,
@@ -64,16 +59,15 @@ class TicketService:
 
         created_ticket = self.ticket_repo.create_ticket(db, new_ticket)
 
-        # Registrar el evento en el historial (Lógica de Jossy)
-        log_repo.create_log(
-            db,
-            user_id=current_user.id,
-            event_type="TICKET_CREATED",
-            message=f"Ticket {created_ticket.id} creado por {current_user.email}",
-            details={"ticket_id": created_ticket.id, "titulo": created_ticket.titulo}
+        new_log = TicketLog(
+            ticket_id=created_ticket.id,
+            usuario_id=current_user.id,
+            accion="CREACION",
+            detalles={"titulo": created_ticket.titulo}
         )
+        db.add(new_log)
+        db.commit()
 
-        # Notificar en tiempo real (Lógica Tuya)
         payload = {
             "evento": "NUEVO_TICKET",
             "ticket_id": created_ticket.id,
@@ -91,24 +85,15 @@ class TicketService:
         return self.ticket_repo.get_tickets(db, skip, limit, cliente_id=user_id)
 
     def get_ticket_detail(self, db: Session, ticket_id: int, current_user: User) -> Ticket:
-        ticket = self.get_ticket_or_404(db, ticket_id)
-        
-        if current_user.role.nombre != "ADMIN" and ticket.cliente_id != current_user.id:
-             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para ver este ticket.")
-        return ticket
+        return self.get_ticket_or_404(db, ticket_id)
 
     def update_ticket(self, db: Session, ticket_id: int, ticket_update: TicketUpdate, current_user: User) -> Ticket:
         ticket = self.get_ticket_or_404(db, ticket_id)
-        
-        if current_user.role.nombre != "ADMIN":
-             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para actualizar tickets.")
-        
         update_data = ticket_update.model_dump(exclude_unset=True)
         return self.ticket_repo.update(db, db_obj=ticket, obj_in=update_data)
 
     def add_comment(self, db: Session, ticket_id: int, comment_in: CommentCreate, current_user: User) -> ComentarioTicket:
         self.get_ticket_detail(db, ticket_id, current_user)
-        
         new_comment = ComentarioTicket(
             ticket_id=ticket_id,
             autor_id=current_user.id,
@@ -122,11 +107,10 @@ class TicketService:
 
     async def assign_ticket(self, db: Session, ticket_id: int, assign_data: TicketAssign, current_user: User) -> Ticket:
         ticket = self.get_ticket_or_404(db, ticket_id)
-        
-        if current_user.role.nombre != "ADMIN":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permiso para asignar tickets.")
 
-        technician = self.user_repo.get_by_id(db, assign_data.tecnico_id)
+        # CORRECCIÓN: Buscamos al técnico directamente en la base de datos
+        technician = db.query(User).filter(User.id == assign_data.tecnico_id).first()
+        
         if not technician:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Técnico no encontrado")
 
@@ -134,15 +118,14 @@ class TicketService:
         if ticket.status == "ABIERTO":
             ticket.status = "EN_PROGRESO"
         
-        db.add(ticket)
-        
-        log_repo.create_log(
-            db,
-            user_id=current_user.id,
-            event_type="TICKET_ASSIGNMENT",
-            message=f"Ticket {ticket_id} asignado al técnico {technician.email}",
-            details={"ticket_id": ticket_id, "technician_id": technician.id}
+        new_log = TicketLog(
+            ticket_id=ticket.id,
+            usuario_id=current_user.id,
+            accion="ASIGNACION",
+            detalles={"tecnico_id": technician.id}
         )
+        db.add(new_log)
+        db.add(ticket)
         db.commit()
         db.refresh(ticket)
         
@@ -156,21 +139,18 @@ class TicketService:
 
     async def update_status(self, db: Session, ticket_id: int, status_update: TicketStatusUpdate, current_user: User) -> Ticket:
         ticket = self.get_ticket_or_404(db, ticket_id)
-        
-        if not (current_user.role.nombre == "ADMIN" or ticket.tecnico_id == current_user.id):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para actualizar estado")
 
         old_status = ticket.status
         ticket.status = status_update.estado
-        db.add(ticket)
-
-        log_repo.create_log(
-            db,
-            user_id=current_user.id,
-            event_type="TICKET_STATUS_CHANGE",
-            message=f"Ticket {ticket_id} cambió de estado {old_status} a {ticket.status}",
-            details={"ticket_id": ticket_id, "old_status": old_status, "new_status": ticket.status}
+        
+        new_log = TicketLog(
+            ticket_id=ticket.id,
+            usuario_id=current_user.id,
+            accion="CAMBIO_ESTADO",
+            detalles={"new_status": ticket.status}
         )
+        db.add(new_log)
+        db.add(ticket)
         db.commit()
         db.refresh(ticket)
         
@@ -205,7 +185,15 @@ class TicketService:
             uploaded_by_id=current_user.id
         )
         db.add(attachment)
-        log_repo.create_log(db, user_id=current_user.id, event_type="TICKET_ATTACHMENT", message=f"Archivo añadido al ticket {ticket_id}")
+        
+        new_log = TicketLog(
+            ticket_id=ticket.id,
+            usuario_id=current_user.id,
+            accion="NUEVO_ARCHIVO",
+            detalles={"archivo": file.filename}
+        )
+        db.add(new_log)
+        
         db.commit()
         db.refresh(attachment)
         

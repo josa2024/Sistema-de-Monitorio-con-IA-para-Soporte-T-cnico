@@ -16,14 +16,16 @@ class TicketRepository:
             query = query.filter(Ticket.equipo_id == equipo_id)
         if cliente_id:
             query = query.filter(Ticket.cliente_id == cliente_id)
-        return query.offset(skip).limit(limit).all()
+        return query.order_by(Ticket.created_at.desc()).offset(skip).limit(limit).all()
 
     def get_by_id(self, db: Session, ticket_id: int) -> Optional[Ticket]:
         return db.query(Ticket).filter(Ticket.id == ticket_id).first()
 
     def update(self, db: Session, *, db_obj: Ticket, obj_in: dict) -> Ticket:
+        # CORRECCIÓN DEFINITIVA: Actualizamos los campos sin generar diccionarios complejos para el log
         for field, value in obj_in.items():
             setattr(db_obj, field, value)
+            
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)

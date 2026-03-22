@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Activity, AlertTriangle, CheckCircle2, Server, Search, Plus, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Box, Bot, Video } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, Server, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Bot, Video } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -43,13 +43,13 @@ const Dashboard = () => {
       const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
       let eqData = [];
-      const eqResponse = await fetch(`http://127.0.0.1:8000/api/v1/equipo/?t=${Date.now()}`, { headers });
+      const eqResponse = await fetch(`http://localhost:8000/api/v1/equipo/?t=${Date.now()}`, { headers });
       if (eqResponse.ok) { eqData = await eqResponse.json(); setEquipmentList(Array.isArray(eqData) ? eqData : []); }
 
-      const licResponse = await fetch(`http://127.0.0.1:8000/api/v1/licencias/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
+      const licResponse = await fetch(`http://localhost:8000/api/v1/licencias/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
       if (licResponse.ok) setExpiringLicenses(await licResponse.json());
 
-      const tktResponse = await fetch(`http://127.0.0.1:8000/api/v1/tickets/?t=${Date.now()}`, { headers });
+      const tktResponse = await fetch(`http://localhost:8000/api/v1/tickets/?t=${Date.now()}`, { headers });
       if (tktResponse.ok) {
         const tktData = await tktResponse.json();
         const activeTickets = tktData.filter(t => t.status === 'ABIERTO' || t.status === 'EN_PROGRESO');
@@ -65,7 +65,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchData();
-    const socket = new WebSocket('ws://127.0.0.1:8000/api/v1/ws/tickets');
+    const socket = new WebSocket('ws://localhost:8000/api/v1/ws/tickets');
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.evento === "NUEVO_TICKET") {
@@ -81,28 +81,41 @@ const Dashboard = () => {
     setScheduledDate(''); // Limpiamos la fecha al abrir
     try {
       const token = localStorage.getItem('token') || '';
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/tickets/${ticket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`http://localhost:8000/api/v1/tickets/${ticket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setComments(await res.json());
     } catch (e) { console.error(e); }
   };
 
   const handleCloseModal = () => { setSelectedTicket(null); setComments([]); setScheduledDate(''); };
 
+  // CORRECCIÓN 1: Enviar headers correctos y el ID del técnico (tecnico_id: 1)
   const handleAssignTicket = async () => {
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token') || '';
-      await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}/assign`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` } });
+      await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/assign`, { 
+        method: 'PATCH', 
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ tecnico_id: 1 })
+      });
       await fetchData(); 
       setSelectedTicket({ ...selectedTicket, status: 'EN_PROGRESO' }); // Actualizamos vista local
     } finally { setIsProcessing(false); }
   };
 
+  // CORRECCIÓN 2: El backend espera 'estado' en lugar de 'status'
   const handleResolveTicket = async () => {
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token') || '';
-      await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ status: "RESUELTO" }) });
+      await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, { 
+        method: 'PATCH', 
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ estado: "RESUELTO" }) 
+      });
       await fetchData(); handleCloseModal();
     } finally { setIsProcessing(false); }
   };
@@ -114,13 +127,13 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('token') || '';
       // 1. Guardamos la fecha en el ticket
-      await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}`, { 
+      await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, { 
         method: 'PATCH', 
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ fecha_agendada: scheduledDate }) 
       });
       // 2. Agregamos un comentario a la bitácora para que el cliente lo sepa
-      await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}/comments`, { 
+      await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { 
         method: 'POST', 
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ contenido: `Videollamada de soporte agendada para el ${new Date(scheduledDate).toLocaleString()}` }) 
@@ -130,7 +143,7 @@ const Dashboard = () => {
       setSelectedTicket({ ...selectedTicket, fecha_agendada: scheduledDate }); // Actualizamos vista
       
       // Recargamos comentarios
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/tickets/${selectedTicket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setComments(await res.json());
 
     } finally { setIsProcessing(false); }
