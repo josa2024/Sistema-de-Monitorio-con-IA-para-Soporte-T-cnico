@@ -1,39 +1,34 @@
-from pydantic import BaseModel, ConfigDict
-from datetime import date, datetime
+from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
-# Asumo que LicenseType es un Enum que definiste en tus modelos
-from app.models.license_models import LicenseType
-
-class LicenseBase(BaseModel):
-    """
-    Schema base para la licencia, contiene campos compartidos.
-    """
+class LicenseCreate(BaseModel):
+    equipo_id: int
+    tipo: str # "SOFTWARE", "GARANTIA_HW", "MANTENIMIENTO"
     nombre_software: str
-    tipo_licencia: LicenseType
-    fecha_inicio: date
-    clave_producto: Optional[str] = None
-    archivo_url: Optional[str] = None
+    licencia_key: Optional[str] = None
+    fecha_vencimiento: str # <-- CORRECCIÓN: Lo recibimos como string para evitar errores 422 de formato.
+    notas: Optional[str] = None
 
-    # Configuración moderna de Pydantic V2 para leer objetos de SQLAlchemy
-    model_config = ConfigDict(from_attributes=True)
-
-
-class LicenseCreate(LicenseBase):
-    """
-    Schema para la creación de una licencia.
-    Hereda de LicenseBase y añade los campos necesarios para el registro.
-    """
-    equipment_id: int
-
-
-# ¡ESTE ES EL CAMBIO CLAVE! Renombrado de License a LicenseResponse
-class LicenseResponse(LicenseBase):
-    """
-    Schema para representar la licencia en las respuestas de la API.
-    Incluye campos de solo lectura como el ID y las fechas de auditoría.
-    """
+class LicenseResponse(BaseModel):
     id: int
-    equipment_id: int
-    fecha_vencimiento: Optional[date] = None
-    fecha_creacion: datetime
+    equipo_id: int
+    tipo: str
+    nombre_software: str
+    licencia_key: Optional[str] = None
+    fecha_vencimiento: datetime
+    notas: Optional[str] = None
+    
+    # Campo que agrega SQLAlchemy al devolver el objeto
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+class LicenseUpdate(BaseModel):
+    tipo: Optional[str] = None
+    nombre_software: Optional[str] = None
+    licencia_key: Optional[str] = None
+    fecha_vencimiento: Optional[str] = None # <-- CORRECCIÓN
+    notas: Optional[str] = None
+    is_active: Optional[bool] = None

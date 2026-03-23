@@ -24,7 +24,9 @@ const HistorialUsuarios = () => {
         // Filtramos para asegurarnos de que la tabla solo muestre a los que tienen rol de CLIENTE
         if (resCl.ok) {
             const allUsers = await resCl.json();
-            const onlyClients = allUsers.filter(u => u.role_id === 2); // 2 es Cliente en tu BD
+            // CORRECCIÓN: El ID de Cliente en la BD suele ser 3 según el script create_user.py
+            // (ADMIN=1, VENTAS=2, CLIENTE=3)
+            const onlyClients = allUsers.filter(u => u.role_id === 3 || !u.role_id || u.role?.nombre === 'CLIENTE'); 
             setClients(onlyClients);
         }
         if (resEq.ok) setEquipments(await resEq.json());

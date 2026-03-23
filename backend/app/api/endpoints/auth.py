@@ -32,11 +32,12 @@ def login_access_token(
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return {
-        # CORRECCIÓN 2: Guardamos el email en el token para que deps.py lo pueda leer correctamente.
         "access_token": security.create_access_token(
             user.email, expires_delta=access_token_expires
         ),
         "token_type": "bearer",
+        "nombre": user.nombre, # <-- Añadimos el nombre para que el frontend lo muestre
+        "role": user.role.nombre if user.role else "CLIENTE" # <-- Añadimos el rol exacto de la base de datos
     }
 
 @router.post("/register", response_model=UserResponse)
