@@ -15,7 +15,7 @@ const Dashboard = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [comments, setComments] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState(''); // NUEVO ESTADO PARA LA CITA
+  const [scheduledDate, setScheduledDate] = useState('');
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -38,17 +38,27 @@ const Dashboard = () => {
   };
 
   const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    const token = localStorage.getItem('token') || '';
+    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    // 1. CARGAR EQUIPOS SEGURAMENTE
     try {
-      const token = localStorage.getItem('token') || '';
-      const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
-
-      let eqData = [];
       const eqResponse = await fetch(`http://localhost:8000/api/v1/equipo/?t=${Date.now()}`, { headers });
-      if (eqResponse.ok) { eqData = await eqResponse.json(); setEquipmentList(Array.isArray(eqData) ? eqData : []); }
+      if (eqResponse.ok) { 
+        const eqData = await eqResponse.json(); 
+        setEquipmentList(Array.isArray(eqData) ? eqData : []); 
+      }
+    } catch (error) { console.warn("Aviso: No se pudieron cargar los equipos."); }
 
+    // 2. CARGAR LICENCIAS SEGURAMENTE (Si falla, no rompe el dashboard)
+    try {
       const licResponse = await fetch(`http://localhost:8000/api/v1/licencias/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
       if (licResponse.ok) setExpiringLicenses(await licResponse.json());
+    } catch (error) { console.warn("Aviso: El endpoint de licencias devolvió error (CORS/404)."); }
 
+    // 3. CARGAR TICKETS SEGURAMENTE
+    try {
       const tktResponse = await fetch(`http://localhost:8000/api/v1/tickets/?t=${Date.now()}`, { headers });
       if (tktResponse.ok) {
         const tktData = await tktResponse.json();
@@ -60,12 +70,17 @@ const Dashboard = () => {
         tktData.forEach(ticket => { const catName = ticket.categoria || 'General / Otro'; categoryCounts[catName] = (categoryCounts[catName] || 0) + 1; });
         setChartData(Object.keys(categoryCounts).map(name => ({ name, fallas: categoryCounts[name] })));
       }
-    } catch (error) { console.error("Error:", error); } finally { setIsLoading(false); }
+    } catch (error) { console.warn("Aviso: No se pudieron cargar los tickets."); }
+    
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
     fetchData();
-    const socket = new WebSocket('ws://localhost:8000/api/v1/ws/tickets');
+    // CORRECCIÓN: Agregamos el /ws/ a la URL y pasamos el token por parámetro para el Websocket
+    const token = localStorage.getItem('token') || '';
+    const socket = new WebSocket(`ws://localhost:8000/api/v1/ws/tickets?token=${token}`);
+    
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.evento === "NUEVO_TICKET") {
@@ -78,7 +93,7 @@ const Dashboard = () => {
 
   const handleOpenTicket = async (ticket) => {
     setSelectedTicket(ticket);
-    setScheduledDate(''); // Limpiamos la fecha al abrir
+    setScheduledDate('');
     try {
       const token = localStorage.getItem('token') || '';
       const res = await fetch(`http://localhost:8000/api/v1/tickets/${ticket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -88,7 +103,6 @@ const Dashboard = () => {
 
   const handleCloseModal = () => { setSelectedTicket(null); setComments([]); setScheduledDate(''); };
 
-  // CORRECCIÓN 1: Enviar headers correctos y el ID del técnico (tecnico_id: 1)
   const handleAssignTicket = async () => {
     setIsProcessing(true);
     try {
@@ -102,11 +116,10 @@ const Dashboard = () => {
         body: JSON.stringify({ tecnico_id: 1 })
       });
       await fetchData(); 
-      setSelectedTicket({ ...selectedTicket, status: 'EN_PROGRESO' }); // Actualizamos vista local
+      setSelectedTicket({ ...selectedTicket, status: 'EN_PROGRESO' });
     } finally { setIsProcessing(false); }
   };
 
-  // CORRECCIÓN 2: El backend espera 'estado' en lugar de 'status'
   const handleResolveTicket = async () => {
     setIsProcessing(true);
     try {
@@ -120,19 +133,16 @@ const Dashboard = () => {
     } finally { setIsProcessing(false); }
   };
 
-  // NUEVA FUNCIÓN: Agendar Videollamada
   const handleScheduleCall = async () => {
     if (!scheduledDate) return;
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token') || '';
-      // 1. Guardamos la fecha en el ticket
       await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, { 
         method: 'PATCH', 
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ fecha_agendada: scheduledDate }) 
       });
-      // 2. Agregamos un comentario a la bitácora para que el cliente lo sepa
       await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { 
         method: 'POST', 
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
@@ -140,9 +150,8 @@ const Dashboard = () => {
       });
       
       await fetchData();
-      setSelectedTicket({ ...selectedTicket, fecha_agendada: scheduledDate }); // Actualizamos vista
+      setSelectedTicket({ ...selectedTicket, fecha_agendada: scheduledDate });
       
-      // Recargamos comentarios
       const res = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setComments(await res.json());
 
@@ -154,7 +163,6 @@ const Dashboard = () => {
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-8 relative pb-10">
       
-      {/* Alerta WebSockets */}
       <AnimatePresence>
         {liveAlert && (
           <motion.div initial={{ opacity: 0, y: -50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: -50, x: '-50%' }} className="fixed top-6 left-1/2 z-50 bg-[#0b1437] text-white border border-blue-500/50 px-8 py-3 rounded-full shadow-[0_10px_40px_rgba(11,20,55,0.4)] flex items-center gap-4">
@@ -168,7 +176,6 @@ const Dashboard = () => {
         <div><h1 className="text-3xl font-black text-[#0b1437]">Dashboard Analítico</h1><p className="text-slate-500 text-sm mt-1 font-medium">Supervisión integral de Hardware y diagnósticos IA.</p></div>
       </div>
 
-      {/* Tarjetas Superiores */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
           { title: "Monitoreados", val: equipmentList.length, icon: Server, color: "text-blue-600", bg: "bg-blue-50" },
@@ -185,7 +192,6 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         
-        {/* Bandeja Izquierda */}
         <div className="xl:col-span-1 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[700px] overflow-hidden">
           <div className="p-6 border-b border-slate-100 bg-[#0b1437] text-white flex justify-between items-center">
             <h2 className="font-bold flex items-center gap-2 tracking-wide"><Activity size={18} className="text-blue-400" /> Cola de Atención</h2>
@@ -206,10 +212,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Lado Derecho: Gráfica y 2 Tablas */}
         <div className="xl:col-span-2 flex flex-col gap-8 h-[700px]">
-          
-          {/* Gráfica Recharts Restaurada */}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 h-1/2 flex flex-col">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Categorización IA de Anomalías</h2>
             <div className="flex-1 w-full">
@@ -266,7 +269,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* MODAL DE TICKET: Flujo de Videollamada */}
       <AnimatePresence>
         {selectedTicket && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b1437]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -305,7 +307,6 @@ const Dashboard = () => {
                 )}
               </div>
 
-              {/* PIE DEL MODAL: Lógica de Videollamada */}
               <div className="p-8 border-t border-slate-100 bg-white shrink-0">
                 {selectedTicket.status === 'ABIERTO' ? (
                   <div className="flex justify-end gap-3">

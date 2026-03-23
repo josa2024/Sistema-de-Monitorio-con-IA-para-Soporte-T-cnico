@@ -13,8 +13,8 @@ api_router.include_router(users.router, prefix="/usuarios", tags=["users"])
 # Módulo de Equipos (Inventario, Instalación HU-01)
 api_router.include_router(equipment.router, prefix="/equipo", tags=["equipment"])
 
-# Módulo de WebSockets
-api_router.include_router(ws.router)
+# CORRECCIÓN: Separamos los WebSockets en su propia ruta para evitar colisiones
+api_router.include_router(ws.router, prefix="/ws", tags=["websockets"])
 
 # Módulo de Tickets (HU-02)
 api_router.include_router(tickets.router, prefix="/tickets", tags=["tickets"])

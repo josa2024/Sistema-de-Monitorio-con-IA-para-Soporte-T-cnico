@@ -16,10 +16,10 @@ const Garantias = () => {
   const fetchData = async () => {
     const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
     try {
-      const resEq = await fetch('http://127.0.0.1:8000/api/v1/equipo/?t=' + Date.now(), { headers });
+      const resEq = await fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), { headers });
       if (resEq.ok) setEquipmentList(await resEq.json());
 
-      const resExp = await fetch('http://127.0.0.1:8000/api/v1/licencias/dashboard/expiring?days=30&t=' + Date.now(), { headers });
+      const resExp = await fetch('http://localhost:8000/api/v1/licencias/dashboard/expiring?days=30&t=' + Date.now(), { headers });
       if (resExp.ok) setExpiringLicenses(await resExp.json());
     } catch (e) { console.error(e); }
   };
@@ -29,7 +29,7 @@ const Garantias = () => {
   useEffect(() => {
     if (!selectedEquipment) return;
     const fetchLicenses = async () => {
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const res = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
       if (res.ok) setEquipmentLicenses(await res.json());
     };
     fetchLicenses();
@@ -51,10 +51,10 @@ const Garantias = () => {
       formData.append('fecha_vencimiento', form.fecha_vencimiento);
       formData.append('file', form.file);
 
-      const res = await fetch('http://127.0.0.1:8000/api/v1/licencias/', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
+      const res = await fetch('http://localhost:8000/api/v1/licencias/', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
       if (res.ok) {
         setIsModalOpen(false); setForm({ tipo: 'SOFTWARE', nombre_software: '', licencia_key: '', fecha_inicio: '', fecha_vencimiento: '', file: null });
-        const resLic = await fetch(`http://127.0.0.1:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const resLic = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
         if (resLic.ok) setEquipmentLicenses(await resLic.json());
         fetchData();
       } else { alert("Error al registrar."); }
@@ -63,7 +63,7 @@ const Garantias = () => {
 
   const handleDownload = async (licenseId, nombre) => {
     try {
-        const response = await fetch(`http://127.0.0.1:8000/api/v1/licencias/descargar/${licenseId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const response = await fetch(`http://localhost:8000/api/v1/licencias/descargar/${licenseId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
         if (!response.ok) throw new Error("No hay archivo");
         const blob = await response.blob();
         const a = document.createElement('a'); a.href = window.URL.createObjectURL(blob); a.download = `Doc_${nombre.replace(/\s+/g, '_')}.pdf`; document.body.appendChild(a); a.click(); a.remove();
