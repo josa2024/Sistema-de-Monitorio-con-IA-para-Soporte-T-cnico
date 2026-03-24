@@ -1,8 +1,8 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Bot, ShieldAlert, Ticket, Sparkles, AlertTriangle, RotateCcw, Zap } from 'lucide-react';
+import { Send, Bot, ShieldAlert, Ticket, Sparkles, AlertTriangle, RotateCcw, Zap, Headphones } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- NUEVO: PREGUNTAS PREDETERMINADAS ---
+// --- PREGUNTAS PREDETERMINADAS ---
 const QUICK_ACTIONS = [
   { emoji: "💳", title: "CardStudio: Instalar/Activar", prompt: "Necesito ayuda con la descarga, instalación y activación de la licencia de CardStudio 2.0." },
   { emoji: "🖨️", title: "Cargar Zebra ZC100/300", prompt: "Explícame cómo hacer la carga de tarjetas y poner el ribbon en una impresora Zebra ZC100 o ZC300." },
@@ -48,7 +48,27 @@ const Chatbot = ({
     setCategory('General / Otro');
   };
 
-  // NUEVO: Adaptamos sendMessage para que reciba el texto de los botones rápidos
+  const renderTextWithLinks = (text, role) => {
+    if (!text) return null;
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    
+    const linkStyle = role === 'user' 
+      ? "text-blue-200 font-bold underline hover:text-white transition-colors break-all" 
+      : "text-blue-600 font-bold underline hover:text-blue-800 transition-colors break-all";
+
+    return parts.map((part, i) => {
+      if (part.match(urlRegex)) {
+        return (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className={linkStyle}>
+            {part}
+          </a>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   const sendMessage = async (overrideText = null) => {
     const textToSend = typeof overrideText === 'string' ? overrideText : input;
     if (!textToSend.trim()) return;
@@ -56,8 +76,9 @@ const Chatbot = ({
     const userMsg = { role: 'user', text: textToSend };
     setMessages((prev) => [...prev, userMsg]);
     setLastUserIssue(textToSend);
-    setInput(''); // Siempre limpiamos el input al enviar
-    setLoading(true);
+    setInput(''); 
+    
+    setLoading(true); 
     setPriority(null);
     setCategory('General / Otro'); 
     setShowTicketButton(false);
@@ -72,12 +93,12 @@ const Chatbot = ({
 
       if (!response.ok) throw new Error('Error en el servidor');
       
-      setMessages((prev) => [...prev, { role: 'bot', text: '' }]);
-      setLoading(false);
+      // ¡ELIMINAMOS LA CREACIÓN DE LA BURBUJA VACÍA AQUÍ!
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let botText = ""; 
+      let isFirstChunk = true; 
 
       while (true) {
         const { value, done } = await reader.read();
@@ -103,23 +124,36 @@ const Chatbot = ({
               } 
               else if (data.type === 'chunk') {
                 botText += data.text;
-                setMessages(prev => {
-                  const newMsgs = [...prev];
-                  newMsgs[newMsgs.length - 1].text = botText;
-                  return newMsgs;
-                });
+                
+                // ¡LA MAGIA! 
+                // Solo apagamos la animación y creamos la burbuja cuando ya tenemos la primera letra
+                if (isFirstChunk) {
+                  setLoading(false);
+                  isFirstChunk = false;
+                  setMessages(prev => [...prev, { role: 'bot', text: botText }]);
+                } else {
+                  // Si no es la primera letra, solo actualizamos la burbuja existente
+                  setMessages(prev => {
+                    const newMsgs = [...prev];
+                    newMsgs[newMsgs.length - 1].text = botText;
+                    return newMsgs;
+                  });
+                }
               }
             } catch (e) {}
           }
         }
       }
+      
+      if (isFirstChunk) setLoading(false);
+
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'bot', text: '❌ No se pudo establecer conexión con el cerebro de procesamiento.' }]);
       setLoading(false);
     }
   };
 
-  const handleCreateTicket = async () => {
+  const handleCreateTicket = async (isDirect = false) => {
     if (!isAuthenticated && onAuthRequest) {
       onAuthRequest();
       return;
@@ -138,14 +172,17 @@ const Chatbot = ({
          setLoading(false); return;
       }
 
-      // CORRECCIÓN: Armamos el paquete incluyendo cliente_id y prioridad
+      const finalPriority = isDirect ? "BAJA" : (priority || "MEDIA");
+      const finalIssue = isDirect ? "El cliente solicitó creación directa de ticket sin diagnóstico." : lastUserIssue;
+      const finalCategory = isDirect ? "Atención General" : category;
+
       const ticketData = {
-        titulo: "Reporte automático vía IA",
-        descripcion: `Reporte Original: "${lastUserIssue}". \nDiagnóstico IA: ${priority}`,
+        titulo: isDirect ? "Solicitud Directa de Soporte" : "Reporte automático vía IA",
+        descripcion: `Reporte Original: "${finalIssue}". \nDiagnóstico IA: ${finalPriority}`,
         equipo_id: equipos[0].id,
-        cliente_id: equipos[0].cliente_id, // Añadido cliente_id
-        categoria: category,
-        prioridad: priority || "MEDIA"     // Añadida la prioridad detectada por la IA
+        cliente_id: equipos[0].cliente_id, 
+        categoria: finalCategory,
+        prioridad: finalPriority
       };
 
       const response = await fetch('http://localhost:8000/api/v1/tickets/', {
@@ -155,20 +192,21 @@ const Chatbot = ({
       });
 
       if (response.ok) {
-        setMessages((prev) => [...prev, { role: 'bot', text: '✅ He generado un ticket oficial. Nuestro equipo de soporte ya fue notificado y se comunicará contigo a la brevedad. Puedes ver el estado en tu pestaña "Mis Tickets".' }]);
+        if (isDirect) {
+           setMessages((prev) => [
+             ...prev, 
+             { role: 'user', text: "Quiero hablar directamente con un humano y abrir un ticket." },
+             { role: 'bot', text: '✅ ¡Entendido! He generado un ticket directo de prioridad baja. Nuestro equipo lo revisará y te contactará en breve. Ve a "Mis Tickets" para agendar una videollamada si lo deseas.' }
+           ]);
+        } else {
+           setMessages((prev) => [...prev, { role: 'bot', text: '✅ He generado un ticket oficial. Nuestro equipo de soporte ya fue notificado y se comunicará contigo a la brevedad. Puedes ver el estado en tu pestaña "Mis Tickets".' }]);
+        }
       } else { 
-        const errorData = await response.json();
-        console.error("Error validación 422:", errorData);
         throw new Error("No se pudo crear el ticket"); 
       }
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'bot', text: '❌ Ocurrió un error al intentar registrar el ticket en tu cuenta.' }]);
     } finally { setLoading(false); }
-  };
-
-  const typingDotVariants = {
-    initial: { y: 0, opacity: 0.5 },
-    animate: { y: -3, opacity: 1, transition: { duration: 0.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" } }
   };
 
   return (
@@ -191,7 +229,6 @@ const Chatbot = ({
           </div>
         </div>
         
-        {/* BOTÓN: Limpiar Chat */}
         {messages.length > 1 && (
            <button 
              onClick={handleResetChat} 
@@ -203,7 +240,6 @@ const Chatbot = ({
         )}
       </div>
 
-      {/* NOTIFICACIÓN ADMIN (Si aplica) */}
       <AnimatePresence>
         {mode === 'admin' && priority === 'ALTA' && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="shrink-0 bg-red-500 text-white px-6 py-3 flex items-center gap-3 shadow-inner z-10">
@@ -216,33 +252,30 @@ const Chatbot = ({
         )}
       </AnimatePresence>
 
-      {/* ÁREA DE CHAT (Fija y scrolleable internamente) */}
+      {/* ÁREA DE CHAT */}
       <div className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto space-y-6 custom-scrollbar bg-[#f8fafc] z-10">
         <AnimatePresence>
           {messages.map((msg, index) => (
             <motion.div key={index} initial={{ opacity: 0, y: 15, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} layout className={`flex gap-3 items-end ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               
-              {/* Avatar Bot */}
               {msg.role === 'bot' && (
                 <div className="w-8 h-8 bg-[#0b1437] rounded-full flex items-center justify-center shadow-sm shrink-0 border border-slate-200">
                   <Bot size={14} className="text-white" />
                 </div>
               )}
 
-              {/* Burbuja de Mensaje */}
               <div className={`px-5 py-3.5 text-[15px] shadow-sm max-w-[85%] sm:max-w-[75%] ${
                 msg.role === 'user' 
                 ? 'bg-blue-600 text-white rounded-[20px] rounded-br-sm font-medium' 
                 : 'bg-white border border-slate-200/60 text-slate-700 rounded-[20px] rounded-bl-sm font-normal leading-relaxed'
               }`}>
-                <p className="whitespace-pre-wrap">{msg.text}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{renderTextWithLinks(msg.text, msg.role)}</p>
               </div>
             </motion.div>
           ))}
         </AnimatePresence>
 
-        {/* --- NUEVO: BLOQUE DE PREGUNTAS PREDETERMINADAS --- */}
-        {/* Solo se muestra si no hay más de 1 mensaje (solo el saludo del bot) y no está cargando */}
+        {/* --- OPCIONES INICIALES Y TICKET DIRECTO --- */}
         <AnimatePresence>
           {messages.length === 1 && !loading && mode === 'cliente' && (
             <motion.div 
@@ -250,45 +283,69 @@ const Chatbot = ({
               animate={{ opacity: 1, y: 0 }} 
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ delay: 0.2 }}
-              className="pl-11 pr-4 pt-2 pb-4"
+              className="pl-11 pr-4 pt-2 pb-4 space-y-6"
             >
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                <Zap size={14} className="text-amber-500" /> Soluciones Rápidas Frecuentes
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {QUICK_ACTIONS.map((action, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => sendMessage(action.prompt)}
-                    className="text-left bg-white border border-blue-100 hover:border-blue-400 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group flex items-start gap-3"
-                  >
-                    <span className="text-2xl mt-0.5">{action.emoji}</span>
-                    <div>
-                      <h4 className="font-bold text-[#0b1437] text-[13px] group-hover:text-blue-600 transition-colors leading-tight mb-1">{action.title}</h4>
-                      <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{action.prompt}</p>
-                    </div>
-                  </button>
-                ))}
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Headphones size={14} className="text-blue-500" /> Atención Humana Directa
+                </p>
+                <button
+                  onClick={() => handleCreateTicket(true)}
+                  className="w-full text-left bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 hover:border-blue-400 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group flex items-center gap-4"
+                >
+                  <div className="bg-white p-3 rounded-xl shadow-sm text-blue-600 group-hover:scale-110 transition-transform">
+                    <Ticket size={24} />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-[#0b1437] text-sm group-hover:text-blue-700 transition-colors">Omitir IA y Abrir Ticket</h4>
+                    <p className="text-[12px] text-slate-600 font-medium mt-0.5">Crear reporte directo (Prioridad Baja) para agendar cita o chatear con soporte.</p>
+                  </div>
+                </button>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Zap size={14} className="text-amber-500" /> Soluciones Rápidas Frecuentes
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {QUICK_ACTIONS.map((action, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => sendMessage(action.prompt)}
+                      className="text-left bg-white border border-blue-100 hover:border-blue-400 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group flex items-start gap-3"
+                    >
+                      <span className="text-2xl mt-0.5">{action.emoji}</span>
+                      <div>
+                        <h4 className="font-bold text-[#0b1437] text-[13px] group-hover:text-blue-600 transition-colors leading-tight mb-1">{action.title}</h4>
+                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{action.prompt}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Indicador de "Escribiendo..." */}
+        {/* ANIMACIÓN DE CARGA PREMIUM */}
         <AnimatePresence>
           {loading && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} className="flex gap-3 items-end">
-              <div className="w-8 h-8 bg-[#0b1437] rounded-full flex items-center justify-center shadow-sm shrink-0"><Bot size={14} className="text-white" /></div>
-              <div className="bg-white border border-slate-200/60 rounded-[20px] rounded-bl-sm px-5 py-4 shadow-sm flex items-center gap-1.5 h-[48px]">
-                <motion.span variants={typingDotVariants} initial="initial" animate="animate" className="w-1.5 h-1.5 bg-slate-400 rounded-full"></motion.span>
-                <motion.span variants={typingDotVariants} initial="initial" animate="animate" transition={{ delay: 0.2 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full"></motion.span>
-                <motion.span variants={typingDotVariants} initial="initial" animate="animate" transition={{ delay: 0.4 }} className="w-1.5 h-1.5 bg-slate-400 rounded-full"></motion.span>
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg shrink-0 border border-white/20">
+                <Bot size={14} className="text-white animate-pulse" />
+              </div>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200/50 rounded-[20px] rounded-bl-sm px-5 py-4 shadow-md flex items-center gap-2 h-[48px] backdrop-blur-sm">
+                <span className="text-sm font-medium text-blue-700">Pensando</span>
+                <div className="flex gap-1">
+                  <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut" }} className="w-2 h-2 bg-blue-500 rounded-full"></motion.span>
+                  <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.8, delay: 0.2, ease: "easeInOut" }} className="w-2 h-2 bg-indigo-500 rounded-full"></motion.span>
+                  <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 0.8, delay: 0.4, ease: "easeInOut" }} className="w-2 h-2 bg-purple-500 rounded-full"></motion.span>
+                </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* TARJETA INTELIGENTE DE TICKET */}
         <AnimatePresence>
           {mode === 'cliente' && showTicketButton && (
             <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pl-11 pr-4">
@@ -301,7 +358,7 @@ const Chatbot = ({
                     <p className="text-sm text-slate-500 font-medium leading-snug mt-1">Este problema requiere atención humana. ¿Deseas escalar esto a un ingeniero de Innotrev?</p>
                   </div>
                 </div>
-                <button onClick={handleCreateTicket} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl transition-all shadow-md hover:shadow-amber-500/30 flex items-center justify-center gap-2 mt-4">
+                <button onClick={() => handleCreateTicket(false)} className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl transition-all shadow-md hover:shadow-amber-500/30 flex items-center justify-center gap-2 mt-4">
                   <Ticket size={18} /> Escalar a Soporte Técnico
                 </button>
               </div>
@@ -311,7 +368,6 @@ const Chatbot = ({
         <div ref={messagesEndRef} className="h-4" />
       </div>
 
-      {/* ÁREA DE INPUT FLOTANTE (Fija abajo) */}
       <div className="p-4 bg-white/90 backdrop-blur-md border-t border-slate-200 z-20 shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.03)]">
         <div className="relative flex items-center max-w-4xl mx-auto">
           <input
