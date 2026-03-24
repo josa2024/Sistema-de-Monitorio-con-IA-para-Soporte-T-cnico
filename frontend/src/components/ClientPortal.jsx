@@ -26,12 +26,12 @@ const ClientPortal = ({ onLogout, userName }) => {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      // 1. Traer equipos
-      const resEq = await fetch('http://127.0.0.1:8000/api/v1/equipo/?t=' + Date.now(), { headers });
+      // 1. Traer equipos (CORREGIDO A LOCALHOST PARA EVITAR CORS)
+      const resEq = await fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), { headers });
       if (resEq.ok) setEquipmentList(await resEq.json());
 
-      // 2. NUEVO: Traer tickets del cliente
-      const resTk = await fetch('http://127.0.0.1:8000/api/v1/tickets/?t=' + Date.now(), { headers });
+      // 2. NUEVO: Traer tickets del cliente (CORREGIDO A LOCALHOST)
+      const resTk = await fetch('http://localhost:8000/api/v1/tickets/?t=' + Date.now(), { headers });
       if (resTk.ok) setTickets(await resTk.json());
 
     } catch (error) {
@@ -57,9 +57,14 @@ const ClientPortal = ({ onLogout, userName }) => {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('notas_recepcion', notas);
+      formData.append('observaciones', notas); // CORRECCIÓN: El backend espera 'observaciones' en vez de 'notas_recepcion'
+      
+      // Datos obligatorios que pide el backend para procesar la recepción
+      formData.append('fecha_recepcion', new Date().toISOString());
+      formData.append('estado_empaque', 'BUENO');
+      formData.append('encendio_correctamente', 'true');
 
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/equipo/${selectedEq.id}/recepcion`, {
+      const res = await fetch(`http://localhost:8000/api/v1/equipo/${selectedEq.id}/reception`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -68,7 +73,7 @@ const ClientPortal = ({ onLogout, userName }) => {
       if (res.ok) {
         setIsModalOpen(false);
         fetchData(); // Recargamos todo
-      } else { alert("❌ Error al confirmar recepción."); }
+      } else { alert("❌ Error al confirmar recepción. Verifica que subiste una imagen válida."); }
     } catch (error) { console.error(error); } 
     finally { setIsProcessing(false); }
   };
@@ -79,7 +84,7 @@ const ClientPortal = ({ onLogout, userName }) => {
     setIsLoadingLicencias(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://127.0.0.1:8000/api/v1/licencias/equipo/${eq.id}`, {
+      const res = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${eq.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) setLicenciasCliente(await res.json());
@@ -90,7 +95,7 @@ const ClientPortal = ({ onLogout, userName }) => {
   const handleDownloadCertificado = async (licenseId, nombre) => {
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://127.0.0.1:8000/api/v1/licencias/descargar/${licenseId}`, {
+        const response = await fetch(`http://localhost:8000/api/v1/licencias/descargar/${licenseId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) throw new Error("No hay archivo");
@@ -245,7 +250,7 @@ const ClientPortal = ({ onLogout, userName }) => {
                             <td className="px-6 py-4 text-slate-700 font-medium max-w-xs truncate" title={t.descripcion}>{t.descripcion}</td>
                             <td className="px-6 py-4">
                               <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider border border-purple-100 flex items-center gap-1 w-max">
-                                <MessageSquare size={12} /> {t.categoria_ia || 'Diagnóstico IA'}
+                                <MessageSquare size={12} /> {t.categoria || 'Diagnóstico IA'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
@@ -310,8 +315,10 @@ const ClientPortal = ({ onLogout, userName }) => {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* MODAL: VISUALIZADOR DE LICENCIAS */}
+      {/* MODAL: VISUALIZADOR DE LICENCIAS */}
+      <AnimatePresence>
         {selectedEqLicencias && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[80vh]">
@@ -336,7 +343,7 @@ const ClientPortal = ({ onLogout, userName }) => {
                           </span>
                         </div>
                         <h3 className="font-bold text-slate-800 text-sm mb-1">{lic.nombre_software}</h3>
-                        <p className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded inline-block mb-4">
+                        <p className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded inline-block mb-4 break-all">
                           Key: {lic.licencia_key || 'N/A'}
                         </p>
                         <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-2">

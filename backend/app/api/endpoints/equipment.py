@@ -13,53 +13,48 @@ from app.schemas.equipment import (
     EquipmentUpdate,
     EquipmentReception
 )
+from app.models.equipment_models import Equipo
 
 router = APIRouter()
 equipment_service = EquipmentService()
 
-@router.post(
-    "/",
-    response_model=EquipmentResponse,
-    summary="Crear un nuevo equipo",
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(get_current_user)]
-)
-def create_equipment(equipment_in: EquipmentCreate, db: Session = Depends(get_db)):
+@router.post("/", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED)
+def create_equipment(
+    equipment_in: EquipmentCreate, 
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user) # <-- EXIGIMOS SABER QUIÉN ES EL USUARIO
+):
+    # SEGURIDAD: Si es un cliente, ignoramos el ID que manda el frontend
+    # y forzamos a que el equipo se registre a SU nombre real.
+    if current_user.role_id not in [1, 2] and not (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
+        equipment_in.cliente_id = current_user.id
+        
     return equipment_service.create_equipment(db=db, equipment_data=equipment_in)
 
-@router.put(
-    "/{id}",
-    response_model=EquipmentResponse,
-    summary="Actualizar un equipo existente",
-    dependencies=[Depends(get_current_user)]
-)
+@router.put("/{id}", response_model=EquipmentResponse, dependencies=[Depends(get_current_user)])
 def update_equipment(id: int, equipment_in: EquipmentUpdate, db: Session = Depends(get_db)):
     return equipment_service.update_equipment(db=db, equipment_id=id, equipment_update=equipment_in)
 
-@router.get(
-    "/{id}",
-    response_model=EquipmentResponse,
-    summary="Obtener un equipo por ID",
-    dependencies=[Depends(get_current_user)]
-)
+@router.get("/{id}", response_model=EquipmentResponse, dependencies=[Depends(get_current_user)])
 def get_equipment(id: int, db: Session = Depends(get_db)):
     return equipment_service.get_equipment_by_id(db=db, equipment_id=id)
 
-@router.get(
-    "/",
-    response_model=list[EquipmentResponse], 
-    summary="Listar todos los equipos",
-    dependencies=[Depends(get_current_user)]
-)
-def list_equipments(db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
-    return equipment_service.get_all_equipments(db=db, skip=skip, limit=limit)
+@router.get("/", response_model=list[EquipmentResponse])
+def list_equipments(
+    db: Session = Depends(get_db), 
+    skip: int = 0, 
+    limit: int = 100,
+    current_user: User = Depends(get_current_user)
+):
+    # Si es ADMIN o VENTAS (IDs 1 y 2), ve TODOS los equipos
+    if current_user.role_id in [1, 2] or (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
+        return equipment_service.get_all_equipments(db=db, skip=skip, limit=limit)
+    
+    # Si es CLIENTE, SQLAlchemy SOLO devuelve los equipos donde él es el dueño
+    equipos_del_cliente = db.query(Equipo).filter(Equipo.cliente_id == current_user.id).offset(skip).limit(limit).all()
+    return equipos_del_cliente
 
-@router.post(
-    "/{id}/reception",
-    response_model=EquipmentResponse,
-    summary="Registrar recepción de equipo",
-    status_code=status.HTTP_200_OK,
-)
+@router.post("/{id}/reception", response_model=EquipmentResponse, status_code=status.HTTP_200_OK)
 def register_equipment_reception(
     id: int,
     current_user: User = Depends(get_current_user),
@@ -70,13 +65,8 @@ def register_equipment_reception(
     encendio_correctamente: bool = Form(...),
     file: UploadFile | None = File(None, description="Archivo de evidencia")
 ):
-    # ¡CANDADOS ELIMINADOS! Todo usuario logueado pasa directo.
-    
     if file and file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Formato de archivo no válido. Solo se permiten imágenes."
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formato no válido.")
 
     reception_data = EquipmentReception(
         fecha_recepcion=fecha_recepcion,
@@ -85,11 +75,6 @@ def register_equipment_reception(
         observaciones=observaciones
     )
 
-    updated_equipment = equipment_service.process_equipment_reception(
-        db=db,
-        equipment_id=id,
-        reception_data=reception_data,
-        current_user=current_user,
-        file=file,
+    return equipment_service.process_equipment_reception(
+        db=db, equipment_id=id, reception_data=reception_data, current_user=current_user, file=file
     )
-    return updated_equipment
