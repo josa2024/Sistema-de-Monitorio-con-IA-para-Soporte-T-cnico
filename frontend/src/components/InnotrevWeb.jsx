@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Download, Store, CreditCard, AlertTriangle, ShieldAlert, Video } from 'lucide-react';
+import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Store, CreditCard, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Chatbot from './Chatbot';
 import Login from './Login';
@@ -10,7 +10,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
   const [currentView, setCurrentView] = useState('home');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [equipmentList, setEquipmentList] = useState([]);
-  const [tickets, setTickets] = useState([]);
   
   // Estados del Chatbot (Memoria)
   const [chatMessages, setChatMessages] = useState([{ role: 'bot', text: 'Hola. Soy el agente de IA de Innotrev. Estoy aquí para resolver problemas con tus equipos Zebra, Honeywell o infraestructura RFID. ¿En qué te ayudo?' }]);
@@ -28,9 +27,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
   const [formRecepcion, setFormRecepcion] = useState({ estado_empaque: 'Excelente', confirmacion_encendido: false, notas: '' });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const [selectedEqLicencias, setSelectedEqLicencias] = useState(null);
-  const [licenciasCliente, setLicenciasCliente] = useState([]);
-
   useEffect(() => { if (isAuthenticated) fetchData(); }, [isAuthenticated]);
 
   const fetchData = async () => {
@@ -38,8 +34,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
       const token = localStorage.getItem('token');
       const resEq = await fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), { headers: { 'Authorization': `Bearer ${token}` } });
       if (resEq.ok) setEquipmentList(await resEq.json());
-      const resTk = await fetch('http://localhost:8000/api/v1/tickets/?t=' + Date.now(), { headers: { 'Authorization': `Bearer ${token}` } });
-      if (resTk.ok) setTickets(await resTk.json());
     } catch (error) { console.error(error); }
   };
 
@@ -47,18 +41,14 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
     setIsProcessing(true);
     try {
       const token = localStorage.getItem('token');
-      
-      // 1. Extraemos el ID del usuario que tiene la sesión iniciada
-      let userId = 2; // ID de respaldo
+      let userId = 2; 
       try {
         const payloadDecoded = JSON.parse(atob(token.split('.')[1]));
         userId = parseInt(payloadDecoded.id || payloadDecoded.sub) || 2;
       } catch (e) { console.warn("No se pudo leer el ID del token"); }
 
-      // 2. Generamos un Número de Serie temporal para identificar que es una solicitud
       const snTemporal = 'REQ-' + Math.random().toString(36).substr(2, 7).toUpperCase();
 
-      // 3. Armamos el paquete exacto sin 'nombre' y con 'status'
       const payload = {
           modelo: modelo,
           numero_serie: snTemporal,
@@ -80,8 +70,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
           fetchData(); 
           setCurrentView('recepcion'); 
       } else {
-          const errorData = await res.json();
-          console.error("Detalle del error:", errorData);
           alert("Hubo un error al procesar la solicitud.");
       }
     } catch (error) { 
@@ -122,42 +110,23 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
     setIsProcessing(true);
     try {
       const formData = new FormData(); 
-      
-      // 1. SOLO adjuntamos la foto si el usuario realmente seleccionó una
-      if (file) {
-        formData.append('file', file); 
-      }
-      
-      // 2. Enviamos los campos de texto
+      if (file) formData.append('file', file); 
       formData.append('estado_empaque', formRecepcion.estado_empaque); 
-      
-      // 3. Forzamos el booleano a texto ("true" / "false") para que FastAPI no se confunda
       formData.append('encendio_correctamente', formRecepcion.confirmacion_encendido ? "true" : "false"); 
-      
-      // 4. SOLO enviamos observaciones si el usuario escribió algo
-      if (formRecepcion.notas) {
-        formData.append('observaciones', formRecepcion.notas);
-      }
-      
-      // 5. Enviamos la fecha de recepción
+      if (formRecepcion.notas) formData.append('observaciones', formRecepcion.notas);
       formData.append('fecha_recepcion', new Date().toISOString());
 
       const res = await fetch(`http://localhost:8000/api/v1/equipo/${selectedEq.id}/reception`, { 
         method: 'POST', 
-        headers: { 
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-            // OJO: NUNCA se pone 'Content-Type' cuando se usa FormData, el navegador lo hace solo.
-        }, 
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, 
         body: formData 
       });
       
       if (res.ok) { 
         setIsModalOpen(false); 
         fetchData(); 
-        setCurrentView('garantias'); 
+        setCurrentView('recepcion'); // Lo devolvemos a sus pedidos
       } else {
-        const errorData = await res.json();
-        console.error("Detalle del error 422:", errorData);
         alert("Hubo un error al confirmar la recepción. Revisa la consola.");
       }
     } catch (error) { 
@@ -167,21 +136,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
     }
   };
 
-
-
-  const verLicencias = async (eq) => {
-    setSelectedEqLicencias(eq);
-    const res = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${eq.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-    if (res.ok) setLicenciasCliente(await res.json());
-  };
-
-  const handleDownloadCertificado = async (licenseId, nombre) => {
-    const res = await fetch(`http://localhost:8000/api/v1/licencias/descargar/${licenseId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
-    const blob = await res.blob(); const a = document.createElement('a'); a.href = window.URL.createObjectURL(blob); a.download = `${nombre}.pdf`; document.body.appendChild(a); a.click(); a.remove();
-  };
-
   const pedidos = equipmentList.filter(eq => ['SOLICITADO', 'PENDIENTE_PAGO', 'EN_TRANSITO'].includes(eq.status));
-  const instalados = equipmentList.filter(eq => ['INSTALADO', 'FALLA_REPORTADA'].includes(eq.status));
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans flex flex-col relative overflow-hidden">
@@ -203,9 +158,8 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
             {isAuthenticated ? (
               <div className="flex items-center gap-4">
                 <div className="hidden md:flex gap-2">
+                  {/* SOLO DEJAMOS MIS PEDIDOS */}
                   <button onClick={() => setCurrentView('recepcion')} className={`text-xs uppercase tracking-wider font-bold px-3 py-2 rounded-lg transition-all ${currentView === 'recepcion' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>Mis Pedidos {pedidos.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full ml-1">{pedidos.length}</span>}</button>
-                  <button onClick={() => setCurrentView('garantias')} className={`text-xs uppercase tracking-wider font-bold px-3 py-2 rounded-lg transition-all ${currentView === 'garantias' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>Garantías</button>
-                  <button onClick={() => setCurrentView('tickets')} className={`text-xs uppercase tracking-wider font-bold px-3 py-2 rounded-lg transition-all ${currentView === 'tickets' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}>Tickets</button>
                 </div>
                 <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 ml-2"><UserCircle className="text-emerald-400" size={20} /><span className="text-sm font-bold text-white pr-2">{userName}</span></div>
                 <button onClick={onLogout} className="text-slate-400 hover:text-red-400 p-2"><LogOut size={20} /></button>
@@ -349,99 +303,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
             </div>
           </motion.div>
         )}
-
-        {/* VISTA: GARANTIAS Y LICENCIAS */}
-        {isAuthenticated && currentView === 'garantias' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 max-w-6xl mx-auto w-full">
-            <div className="mb-10">
-               <h2 className="text-3xl font-black text-[#0b1437]">Mis Garantías y Licencias</h2>
-               <p className="text-slate-500 mt-2 text-lg">Centro de control de tus pólizas de protección física y software.</p>
-            </div>
-            {instalados.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {instalados.map(eq => (
-                  <div key={eq.id} className="bg-white border border-slate-200 p-8 rounded-3xl shadow-sm hover:shadow-xl transition-all flex flex-col">
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center"><Box size={28} /></div>
-                      <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-md uppercase tracking-wider">Activo</span>
-                    </div>
-                    <h3 className="font-black text-[#0b1437] text-xl mb-2">{eq.modelo}</h3>
-                    <p className="text-xs text-slate-500 font-mono mb-8 bg-slate-50 p-2 rounded-lg inline-block w-max">S/N: {eq.numero_serie}</p>
-                    <button onClick={() => verLicencias(eq)} className="mt-auto w-full bg-[#0b1437] hover:bg-blue-800 text-white font-bold py-3.5 rounded-2xl text-sm transition-colors flex justify-center items-center gap-2">
-                      <ShieldCheck size={18} /> Ver Pólizas y Claves
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-               <div className="bg-white p-12 rounded-3xl shadow-sm border border-slate-200 text-center">
-                 <ShieldCheck size={64} className="mx-auto mb-4 opacity-20 text-slate-400" />
-                 <h3 className="text-xl font-bold text-slate-700">Sin equipos registrados</h3>
-               </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* VISTA: HISTORIAL DE TICKETS */}
-        {isAuthenticated && currentView === 'tickets' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 max-w-6xl mx-auto w-full">
-            <div className="mb-10">
-               <h2 className="text-3xl font-black text-[#0b1437]">Historial de Soporte</h2>
-               <p className="text-slate-500 mt-2 text-lg">Seguimiento en tiempo real de los reportes escalados por la IA.</p>
-            </div>
-            {tickets.length > 0 ? (
-              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 text-xs uppercase font-black tracking-wider">
-                    <tr>
-                      <th className="px-8 py-5"># TKT</th>
-                      <th className="px-8 py-5">Falla Reportada</th>
-                      <th className="px-8 py-5">Categoría IA</th>
-                      <th className="px-8 py-5">Estado</th>
-                      <th className="px-8 py-5">Cita Virtual</th>
-                      <th className="px-8 py-5">Fecha Creado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {tickets.map(t => (
-                      <tr key={t.id} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="px-8 py-5 font-mono font-black text-[#0b1437]">TKT-{t.id.toString().padStart(4, '0')}</td>
-                        <td className="px-8 py-5 text-slate-600 font-medium max-w-xs truncate">{t.descripcion}</td>
-                        <td className="px-8 py-5">
-                          <span className="bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 w-max">
-                            <Cpu size={14} /> {t.categoria_ia || 'Diagnóstico IA'}
-                          </span>
-                        </td>
-                        <td className="px-8 py-5">
-                          <span className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 w-max ${t.status === 'ABIERTO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {t.status === 'ABIERTO' ? 'Pendiente' : 'Atendido'}
-                          </span>
-                        </td>
-                        <td className="px-8 py-5">
-                          {t.fecha_agendada ? (
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs font-black text-[#0b1437]">{new Date(t.fecha_agendada).toLocaleString()}</span>
-                              <button className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-2 rounded-xl transition-colors shadow-sm" title="Unirse a llamada (Próximamente)"><Video size={16} /></button>
-                            </div>
-                          ) : (
-                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg">Por definir</span>
-                          )}
-                        </td>
-                        <td className="px-8 py-5 text-slate-500 font-medium text-sm">{new Date(t.created_at).toLocaleDateString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="bg-white p-16 rounded-3xl shadow-sm border border-slate-200 text-center">
-                 <Ticket size={64} className="mx-auto mb-6 opacity-30 text-blue-500" />
-                 <h3 className="text-2xl font-black text-slate-700 mb-2">No hay reportes de falla</h3>
-                 <p className="text-slate-500 text-lg">Si tu equipo presenta anomalías, interactúa con el Chatbot para abrir un ticket.</p>
-              </div>
-            )}
-          </motion.div>
-        )}
       </main>
 
       <AnimatePresence>
@@ -508,48 +369,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                       <button type="submit" disabled={isProcessing} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-xl text-sm font-black transition-all">Confirmar Instalación</button>
                   </div>
                </form>
-             </motion.div>
-          </motion.div>
-        )}
-
-        {/* MODAL VER LICENCIAS */}
-        {selectedEqLicencias && (
-          <motion.div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-             <motion.div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-[#0b1437] text-white">
-                  <div>
-                    <h2 className="font-black text-xl flex items-center gap-2"><ShieldCheck className="text-emerald-400" size={24}/> Bóveda de Licencias</h2>
-                    <p className="text-sm text-blue-200 mt-1">{selectedEqLicencias.modelo}</p>
-                  </div>
-                  <button onClick={() => setSelectedEqLicencias(null)} className="text-white/50 hover:text-white bg-white/10 p-2 rounded-full"><X size={20} /></button>
-                </div>
-                <div className="p-8 overflow-y-auto flex-1 bg-slate-50">
-                   {licenciasCliente.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        {licenciasCliente.map(lic => (
-                          <div key={lic.id} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                             <div className="flex justify-between items-start mb-4">
-                               <span className={`text-[10px] font-black px-3 py-1.5 rounded-lg tracking-widest uppercase ${lic.tipo === 'SOFTWARE' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                 {lic.tipo}
-                               </span>
-                             </div>
-                             <h3 className="font-black text-slate-800 text-lg mb-2">{lic.nombre_software}</h3>
-                             <p className="font-mono text-sm text-slate-600 bg-slate-100 px-3 py-2 rounded-lg block mb-6 break-all">
-                               {lic.licencia_key || 'Soporte Físico'}
-                             </p>
-                             <button onClick={() => handleDownloadCertificado(lic.id, lic.nombre_software)} className="w-full text-blue-700 bg-blue-50 hover:bg-blue-600 hover:text-white py-3 rounded-xl transition-colors text-sm font-black flex justify-center items-center gap-2">
-                               <Download size={18} /> Descargar Certificado
-                             </button>
-                          </div>
-                        ))}
-                      </div>
-                   ) : (
-                     <div className="text-center py-16 text-slate-400">
-                       <Box size={64} className="mx-auto mb-4 opacity-20" />
-                       <p className="text-lg font-medium">Aún no hay pólizas emitidas para este equipo.</p>
-                     </div>
-                   )}
-                </div>
              </motion.div>
           </motion.div>
         )}

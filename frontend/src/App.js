@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Package, ShieldCheck, UserCircle, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, Package, ShieldCheck, UserCircle, LogOut, Users, Ticket, Award } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import Inventario from './components/Inventario';
 import Garantias from './components/Garantias';
 import HistorialUsuarios from './components/HistorialUsuarios'; 
 import InnotrevWeb from './components/InnotrevWeb'; 
+import ClienteTickets from './components/ClienteTickets';
+import ClienteGarantias from './components/ClienteGarantias';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
@@ -44,7 +46,7 @@ function App() {
 
   return (
     <div className="flex h-screen bg-[#f8fafc] font-sans overflow-hidden">
-      <aside className="w-[280px] bg-[#070d24] text-slate-400 flex flex-col shadow-2xl z-20 border-r border-slate-800/50">
+      <aside className="w-[280px] bg-[#070d24] text-slate-400 flex flex-col shadow-2xl z-20 border-r border-slate-800/50 shrink-0">
         <div className="h-20 flex items-center px-8 bg-[#040817] text-white font-black text-2xl tracking-widest border-b border-white/5 shadow-inner">
           INNOTREV <span className="text-blue-500 ml-2 text-[10px] bg-blue-500/10 px-2 py-1 rounded-md uppercase tracking-widest border border-blue-500/20">Admin</span>
         </div>
@@ -60,17 +62,28 @@ function App() {
             <Package size={20} className={activeTab === 'inventario' ? 'text-white' : 'text-slate-500'} /> Gestión de Inventario
           </button>
 
-          {/* NUEVO BOTÓN: Historial de Usuarios */}
           <button onClick={() => setActiveTab('historial')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-sm font-bold ${activeTab === 'historial' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-[1.02]' : 'hover:bg-white/5 hover:text-slate-200'}`}>
             <Users size={20} className={activeTab === 'historial' ? 'text-white' : 'text-slate-500'} /> Historial y Seguimiento
           </button>
           
-          <button onClick={() => setActiveTab('garantias')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-sm font-bold ${activeTab === 'garantias' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-[1.02]' : 'hover:bg-white/5 hover:text-slate-200'}`}>
-            <ShieldCheck size={20} className={activeTab === 'garantias' ? 'text-white' : 'text-slate-500'} /> Licencias y Pólizas
+          <button onClick={() => setActiveTab('polizas')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-sm font-bold ${activeTab === 'polizas' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-[1.02]' : 'hover:bg-white/5 hover:text-slate-200'}`}>
+            <ShieldCheck size={20} className={activeTab === 'polizas' ? 'text-white' : 'text-slate-500'} /> Bóveda de Pólizas
           </button>
+
+          <div className="w-full h-px bg-white/5 my-4"></div>
+          <p className="px-3 text-[11px] font-black text-slate-600 uppercase tracking-widest mb-4">Seguimiento Global</p>
+
+          <button onClick={() => setActiveTab('cliente_garantias')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-sm font-bold ${activeTab === 'cliente_garantias' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-[1.02]' : 'hover:bg-white/5 hover:text-slate-200'}`}>
+            <Award size={20} className={activeTab === 'cliente_garantias' ? 'text-white' : 'text-slate-500'} /> Garantías de Equipos
+          </button>
+
+          <button onClick={() => setActiveTab('cliente_tickets')} className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-sm font-bold ${activeTab === 'cliente_tickets' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50 scale-[1.02]' : 'hover:bg-white/5 hover:text-slate-200'}`}>
+            <Ticket size={20} className={activeTab === 'cliente_tickets' ? 'text-white' : 'text-slate-500'} /> Todos los Tickets
+          </button>
+
         </nav>
 
-        <div className="p-5 border-t border-white/5 bg-gradient-to-t from-[#040817] to-transparent">
+        <div className="p-5 border-t border-white/5 bg-gradient-to-t from-[#040817] to-transparent shrink-0">
           <div className="flex items-center gap-3 px-4 py-3.5 bg-white/5 rounded-2xl mb-4 border border-white/5 backdrop-blur-sm">
             <UserCircle size={24} className="text-emerald-400 shrink-0" />
             <div className="overflow-hidden">
@@ -83,11 +96,14 @@ function App() {
           </button>
         </div>
       </aside>
-      <main className="flex-1 overflow-y-auto bg-[#f8fafc] relative custom-scrollbar">
+
+      <main className="flex-1 overflow-y-auto bg-[#f8fafc] relative custom-scrollbar flex flex-col">
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'inventario' && <Inventario />}
-        {activeTab === 'historial' && <HistorialUsuarios />} {/* NUEVA RUTA */}
-        {activeTab === 'garantias' && <Garantias />}
+        {activeTab === 'historial' && <HistorialUsuarios />}
+        {activeTab === 'polizas' && <Garantias />}
+        {activeTab === 'cliente_garantias' && <ClienteGarantias />}
+        {activeTab === 'cliente_tickets' && <ClienteTickets />}
       </main>
     </div>
   );

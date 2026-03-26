@@ -93,8 +93,6 @@ const Chatbot = ({
 
       if (!response.ok) throw new Error('Error en el servidor');
       
-      // ¡ELIMINAMOS LA CREACIÓN DE LA BURBUJA VACÍA AQUÍ!
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let botText = ""; 
@@ -207,6 +205,11 @@ const Chatbot = ({
     } catch (error) {
       setMessages((prev) => [...prev, { role: 'bot', text: '❌ Ocurrió un error al intentar registrar el ticket en tu cuenta.' }]);
     } finally { setLoading(false); }
+  };
+
+  const typingDotVariants = {
+    initial: { y: 0, opacity: 0.5 },
+    animate: { y: -3, opacity: 1, transition: { duration: 0.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" } }
   };
 
   return (
