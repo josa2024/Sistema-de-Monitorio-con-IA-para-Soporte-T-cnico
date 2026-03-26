@@ -1,7 +1,7 @@
 import json
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 
 from app.api import deps
@@ -33,20 +33,20 @@ def read_tickets(
     estado: Optional[TicketStatus] = None,
     current_user: User = Depends(deps.get_current_active_user) # <-- EXIGIMOS SABER QUIÉN PREGUNTA
 ) -> Any:
-    query = db.query(Ticket)
+    query = db.query(Ticket).options(joinedload(Ticket.cliente), joinedload(Ticket.tecnico))
     
     # Si NO es Admin ni Ventas, solo le mostramos sus propios tickets
     if current_user.role_id not in [1, 2] and not (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
         query = query.filter(Ticket.cliente_id == current_user.id)
         
     if estado:
-        query = query.filter(Ticket.estado == estado)
+        query = query.filter(Ticket.status == estado)
         
     return query.offset(skip).limit(limit).all()
 
 @router.get("/{ticket_id}", response_model=TicketResponse)
 def read_ticket(*, db: Session = Depends(deps.get_db), ticket_id: int) -> Any:
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    ticket = db.query(Ticket).options(joinedload(Ticket.cliente), joinedload(Ticket.tecnico)).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="El ticket no existe")
     return ticket

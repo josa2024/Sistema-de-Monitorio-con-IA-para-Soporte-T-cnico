@@ -203,6 +203,7 @@ const Dashboard = () => {
                 <motion.div key={ticket.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} whileHover={{ scale: 1.02 }} onClick={() => handleOpenTicket(ticket)} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-2 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   <div className="flex justify-between items-start mb-3"><span className="text-xs font-black tracking-wider text-slate-400 group-hover:text-blue-600 transition-colors">TKT-{String(ticket.id).padStart(4, '0')}</span><span className={`px-2.5 py-1 rounded text-[10px] font-black tracking-wider uppercase border ${getPriorityBadge(ticket.prioridad)}`}>{ticket.prioridad}</span></div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cliente: {ticket.cliente?.nombre || ticket.cliente?.email || 'Desconocido'}</p>
                   <h3 className="font-bold text-[#0b1437] text-sm mb-1.5 line-clamp-1">{ticket.titulo}</h3>
                   <p className="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">{ticket.descripcion}</p>
                   <div className="flex justify-between items-center"><span className={`text-[10px] font-bold uppercase tracking-wider ${ticket.status === 'EN_PROGRESO' ? 'text-blue-600' : 'text-slate-400'}`}>{ticket.status}</span><button className="text-blue-600 font-bold flex items-center gap-1 group-hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg text-xs">Revisar <ArrowRight size={14} /></button></div>
@@ -280,8 +281,7 @@ const Dashboard = () => {
                     <span className="text-xs font-black text-blue-300 tracking-widest">TKT-{String(selectedTicket.id).padStart(4, '0')}</span>
                     <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${getPriorityBadge(selectedTicket.prioridad)}`}>{selectedTicket.prioridad}</span>
                     <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${selectedTicket.status === 'ABIERTO' ? 'bg-white/10 text-white border-white/20' : 'bg-blue-500 text-white border-blue-400'}`}>{selectedTicket.status}</span>
-                  </div>
-                  <h2 className="text-2xl font-black">{selectedTicket.titulo}</h2>
+                  </div>                  <p className="text-xs font-bold text-gray-200 mb-2">Cliente: {selectedTicket.cliente?.nombre || selectedTicket.cliente?.email || 'Desconocido'}</p>                  <h2 className="text-2xl font-black">{selectedTicket.titulo}</h2>
                 </div>
                 <button onClick={handleCloseModal} className="text-white/50 hover:text-white bg-white/10 p-2 rounded-full transition-colors"><X size={20} /></button>
               </div>

@@ -62,6 +62,8 @@ class TicketResponse(TicketCreate):
     fecha_agendada: Optional[datetime] = None
     cliente_id: Optional[int] = None
     tecnico_id: Optional[int] = None
+    cliente: Optional[UserSimple] = None
+    tecnico: Optional[UserSimple] = None
     categoria: Optional[str] = "General"
     class Config:
         from_attributes = True

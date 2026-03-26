@@ -34,6 +34,7 @@ const ClienteTickets = () => {
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase font-bold">
               <tr>
                 <th className="px-6 py-4">Ticket</th>
+                <th className="px-6 py-4">Cliente</th>
                 <th className="px-6 py-4">Falla Reportada</th>
                 <th className="px-6 py-4">Clasificación IA</th>
                 <th className="px-6 py-4">Estado</th>
@@ -44,6 +45,7 @@ const ClienteTickets = () => {
               {tickets.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono font-bold text-blue-600">#{t.id}</td>
+                  <td className="px-6 py-4 text-slate-700 font-medium">{t.cliente?.nombre || t.cliente?.email || 'Desconocido'}</td>
                   <td className="px-6 py-4 text-slate-700 font-medium max-w-xs truncate" title={t.descripcion}>{t.descripcion}</td>
                   <td className="px-6 py-4">
                     <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider border border-purple-100 flex items-center gap-1 w-max">
