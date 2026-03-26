@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PackageOpen, UserCircle, LogOut, Truck, CheckCircle2, X } from 'lucide-react';
+import { PackageOpen, UserCircle, LogOut, Truck, CheckCircle2, X, UploadCloud, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ClientPortal = ({ onLogout, userName }) => {
@@ -60,86 +60,147 @@ const ClientPortal = ({ onLogout, userName }) => {
   const equiposEnTransito = equipmentList.filter(eq => eq.status === 'EN_TRANSITO');
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 z-10 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold text-white">IN</div>
-          <span className="font-bold text-xl tracking-tight text-slate-800 hidden sm:block">Portal Innotrev</span>
-        </div>
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans relative">
+      
+      {/* HEADER (Se oculta automáticamente en la vista de Admin gracias a tu App.js) */}
+      <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-8 z-10 shadow-sm shrink-0">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-200">
-            <UserCircle className="text-blue-600" size={18} />
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center font-black text-white shadow-inner">
+            IN
+          </div>
+          <span className="font-black text-2xl tracking-tight text-[#0b1437] hidden sm:block">Portal Innotrev</span>
+        </div>
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3 bg-slate-50 px-5 py-2 rounded-full border border-slate-200 shadow-sm">
+            <UserCircle className="text-blue-600" size={20} />
             <span className="text-sm font-bold text-slate-700">{userName}</span>
           </div>
-          <button onClick={onLogout} className="text-slate-400 hover:text-red-500 transition-colors p-2 bg-slate-50 rounded-full hover:bg-red-50" title="Cerrar Sesión">
-            <LogOut size={18} />
+          <button onClick={onLogout} className="text-slate-400 hover:text-red-500 transition-all p-2.5 bg-white rounded-full hover:bg-red-50 border border-transparent hover:border-red-100 shadow-sm" title="Cerrar Sesión">
+            <LogOut size={20} />
           </button>
         </div>
       </header>
 
-      <main className="flex-1 p-8 overflow-y-auto max-w-5xl mx-auto w-full">
+      <main className="flex-1 p-6 md:p-10 overflow-y-auto max-w-6xl mx-auto w-full">
         <div className="space-y-8">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">Equipos en Tránsito</h2>
-            <p className="text-slate-500 mt-1">Confirma la llegada de tus equipos y activa tus garantías adjuntando evidencia física.</p>
+          
+          <div className="mb-10">
+            <h2 className="text-3xl font-black text-[#0b1437]">Equipos en Tránsito</h2>
+            <p className="text-slate-500 mt-2 text-lg">Confirma la llegada de tu hardware y activa tu póliza de soporte adjuntando evidencia física.</p>
           </div>
           
           {equiposEnTransito.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {equiposEnTransito.map(eq => (
-                <div key={eq.id} className="bg-white border border-amber-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-amber-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
-                  <div className="flex justify-between items-start mb-4">
+                <div key={eq.id} className="group bg-white border border-slate-200 p-8 rounded-3xl shadow-sm hover:shadow-xl hover:border-amber-200 transition-all duration-300 flex flex-col relative overflow-hidden hover:-translate-y-1">
+                  
+                  {/* Fondo decorativo animado */}
+                  <div className="absolute -top-16 -right-16 w-48 h-48 bg-amber-50 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700 ease-out z-0"></div>
+                  
+                  <div className="relative z-10 flex justify-between items-start mb-6">
                     <div>
-                      <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded border border-amber-200 uppercase tracking-wider mb-2 inline-block">Envío Pendiente</span>
-                      <h3 className="font-bold text-slate-800 text-lg">{eq.modelo}</h3>
+                      <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-3 py-1.5 rounded-md uppercase tracking-widest mb-3 inline-block shadow-sm">Envío Pendiente</span>
+                      <h3 className="font-black text-[#0b1437] text-2xl leading-tight">{eq.modelo}</h3>
                     </div>
-                    <Truck className="text-amber-500" size={28} />
+                    <div className="bg-amber-100 p-3 rounded-2xl text-amber-600 shadow-sm">
+                      <Truck size={28} />
+                    </div>
                   </div>
-                  <p className="text-xs text-slate-500 font-mono mb-6 bg-slate-50 p-2 rounded border border-slate-100 inline-block w-max">S/N: {eq.numero_serie}</p>
-                  <button onClick={() => openModal(eq)} className="mt-auto w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-sm transition-colors flex justify-center items-center gap-2 shadow-lg shadow-amber-200">
-                    <CheckCircle2 size={18} /> Registrar Recepción de Hardware
+                  
+                  <div className="relative z-10 mb-8">
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Número de Serie</p>
+                    <p className="text-sm text-slate-700 font-mono font-bold bg-slate-50 py-2 px-3 rounded-lg border border-slate-100 inline-block">{eq.numero_serie}</p>
+                  </div>
+
+                  <button onClick={() => openModal(eq)} className="relative z-10 mt-auto w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black py-4 rounded-2xl text-sm transition-all flex justify-center items-center gap-2 shadow-[0_4px_14px_rgba(245,158,11,0.4)] hover:shadow-[0_6px_20px_rgba(245,158,11,0.6)]">
+                    <CheckCircle2 size={20} /> Registrar Llegada Física
                   </button>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center text-slate-400">
-              <CheckCircle2 size={56} className="mx-auto mb-4 text-emerald-400 opacity-60" />
-              <h3 className="text-lg font-bold text-slate-700 mb-1">Todo al día</h3>
-              <p className="text-sm">No tienes equipos pendientes de recibir en este momento.</p>
+            <div className="bg-white p-16 rounded-3xl shadow-sm border border-slate-200 text-center flex flex-col items-center justify-center">
+              <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center mb-6">
+                <CheckCircle2 size={48} className="text-emerald-500" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-800 mb-2">Todo al día</h3>
+              <p className="text-slate-500 text-lg max-w-md">No tienes equipos pendientes de recibir en este momento. Tu inventario está actualizado.</p>
             </div>
           )}
         </div>
       </main>
 
+      {/* MODAL DE RECEPCIÓN */}
       <AnimatePresence>
         {isModalOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h2 className="font-bold text-slate-800 flex items-center gap-2"><CheckCircle2 className="text-emerald-500" size={18}/> Validar Recepción</h2>
-                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1.5 rounded-md shadow-sm"><X size={16} /></button>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b1437]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200">
+              
+              {/* Header de la Modal */}
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+                <h2 className="font-black text-xl text-[#0b1437] flex items-center gap-3">
+                  <span className="bg-emerald-100 p-2 rounded-xl text-emerald-600"><CheckCircle2 size={20}/></span> 
+                  Validar Recepción
+                </h2>
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-full shadow-sm transition-colors border border-slate-100"><X size={18} /></button>
               </div>
-              <form onSubmit={handleConfirmarRecepcion} className="p-6 space-y-5">
-                <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl">
-                  <p className="text-xs text-blue-800 mb-1">Equipo a recibir:</p>
-                  <p className="font-bold text-blue-900 text-sm">{selectedEq?.modelo}</p>
-                  <p className="font-mono text-xs text-blue-600 mt-1">S/N: {selectedEq?.numero_serie}</p>
+
+              <form onSubmit={handleConfirmarRecepcion} className="p-8 space-y-6">
+                
+                {/* Resumen del Equipo */}
+                <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl flex items-center gap-4">
+                  <div className="bg-blue-100 p-3 rounded-xl text-blue-600 shrink-0"><PackageOpen size={24}/></div>
+                  <div>
+                    <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-0.5">Equipo a recibir</p>
+                    <p className="font-black text-[#0b1437] text-base leading-tight">{selectedEq?.modelo}</p>
+                    <p className="font-mono text-xs text-blue-600 font-bold mt-1">S/N: {selectedEq?.numero_serie}</p>
+                  </div>
                 </div>
+
+                {/* Zona de Subida de Archivos Estilo Drag & Drop */}
+                <div className="relative group cursor-pointer">
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Evidencia Fotográfica <span className="text-red-500">*</span></label>
+                  <div className={`flex flex-col items-center justify-center w-full px-4 py-8 border-2 border-dashed rounded-2xl transition-all duration-300 ${file ? 'bg-emerald-50 border-emerald-300' : 'bg-slate-50 border-slate-200 group-hover:bg-blue-50 group-hover:border-blue-400'}`}>
+                    <div className="flex flex-col items-center pointer-events-none text-center">
+                      {file ? (
+                        <>
+                          <Camera className="text-emerald-500 mb-3" size={32} />
+                          <span className="text-sm font-bold text-emerald-700">{file.name}</span>
+                          <span className="text-xs font-medium text-emerald-500 mt-1">Imagen lista para subir</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="text-slate-400 group-hover:text-blue-500 mb-3 transition-colors" size={32} />
+                          <span className="text-sm font-bold text-slate-600 group-hover:text-blue-700 transition-colors">Haz clic para seleccionar imagen</span>
+                          <span className="text-xs font-medium text-slate-400 mt-1">JPG, PNG o WEBP (Max. 5MB)</span>
+                        </>
+                      )}
+                    </div>
+                    {/* El input real está invisible encima de toda la zona */}
+                    <input type="file" accept="image/*" required onChange={e => setFile(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  </div>
+                </div>
+
+                {/* Textarea */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Evidencia Fotográfica</label>
-                  <input type="file" accept="image/*" required onChange={e => setFile(e.target.files[0])} className="w-full text-xs" />
+                  <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Notas Adicionales <span className="text-slate-300 font-normal">(Opcional)</span></label>
+                  <textarea 
+                    placeholder="Ej. La caja llegó ligeramente golpeada de una esquina, pero el equipo está intacto..." 
+                    className="w-full border border-slate-200 p-4 rounded-2xl text-sm font-medium outline-none bg-slate-50 resize-none h-24 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 transition-all placeholder:text-slate-400" 
+                    value={notas} 
+                    onChange={e => setNotas(e.target.value)}
+                  ></textarea>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Notas Adicionales (Opcional)</label>
-                  <textarea placeholder="¿Llegó en buenas condiciones?" className="w-full border border-slate-200 p-3 rounded-xl text-sm outline-none bg-slate-50 resize-none h-20" value={notas} onChange={e => setNotas(e.target.value)}></textarea>
-                </div>
-                <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl">Cancelar</button>
-                    <button type="submit" disabled={isProcessing} className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm disabled:opacity-50">Confirmar</button>
+
+                {/* Botones de Acción */}
+                <div className="pt-4 flex justify-end gap-3">
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3.5 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+                    <button type="submit" disabled={isProcessing} className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-xl text-sm font-black shadow-lg shadow-emerald-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                      {isProcessing ? 'Procesando...' : 'Confirmar Recepción'}
+                    </button>
                 </div>
               </form>
+
             </motion.div>
           </motion.div>
         )}
