@@ -1,8 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import { Send, Bot, ShieldAlert, Ticket, Sparkles, AlertTriangle, RotateCcw, Zap, Headphones } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { Send, Bot, ShieldAlert, Ticket, Sparkles, AlertTriangle, RotateCcw, Zap, Headphones, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- PREGUNTAS PREDETERMINADAS ---
 const QUICK_ACTIONS = [
   { emoji: "💳", title: "CardStudio: Instalar/Activar", prompt: "Necesito ayuda con la descarga, instalación y activación de la licencia de CardStudio 2.0." },
   { emoji: "🖨️", title: "Cargar Zebra ZC100/300", prompt: "Explícame cómo hacer la carga de tarjetas y poner el ribbon en una impresora Zebra ZC100 o ZC300." },
@@ -31,8 +30,11 @@ const Chatbot = ({
 }) => {
   
   const messagesEndRef = useRef(null);
+  const [showCasualForm, setShowCasualForm] = useState(false);
+  const [casualData, setCasualData] = useState({ nombre: '', contacto: '', equipo: '' });
+
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  useEffect(() => { scrollToBottom(); }, [messages, loading, showTicketButton]);
+  useEffect(() => { scrollToBottom(); }, [messages, loading, showTicketButton, showCasualForm]);
 
   const handleResetChat = () => {
     setMessages([{ 
@@ -44,6 +46,7 @@ const Chatbot = ({
     setInput('');
     setPriority(null);
     setShowTicketButton(false);
+    setShowCasualForm(false);
     setLastUserIssue('');
     setCategory('General / Otro');
   };
@@ -82,6 +85,7 @@ const Chatbot = ({
     setPriority(null);
     setCategory('General / Otro'); 
     setShowTicketButton(false);
+    setShowCasualForm(false);
 
     try {
       const token = localStorage.getItem('token') || ''; 
@@ -122,15 +126,11 @@ const Chatbot = ({
               } 
               else if (data.type === 'chunk') {
                 botText += data.text;
-                
-                // ¡LA MAGIA! 
-                // Solo apagamos la animación y creamos la burbuja cuando ya tenemos la primera letra
                 if (isFirstChunk) {
                   setLoading(false);
                   isFirstChunk = false;
                   setMessages(prev => [...prev, { role: 'bot', text: botText }]);
                 } else {
-                  // Si no es la primera letra, solo actualizamos la burbuja existente
                   setMessages(prev => {
                     const newMsgs = [...prev];
                     newMsgs[newMsgs.length - 1].text = botText;
@@ -142,7 +142,6 @@ const Chatbot = ({
           }
         }
       }
-      
       if (isFirstChunk) setLoading(false);
 
     } catch (error) {
@@ -152,8 +151,10 @@ const Chatbot = ({
   };
 
   const handleCreateTicket = async (isDirect = false) => {
-    if (!isAuthenticated && onAuthRequest) {
-      onAuthRequest();
+    // NUEVO FLUJO: Si no está logueado, le mostramos el mini-formulario en lugar de bloquearlo.
+    if (!isAuthenticated) {
+      setShowCasualForm(true);
+      setShowTicketButton(false);
       return;
     }
 
@@ -194,10 +195,10 @@ const Chatbot = ({
            setMessages((prev) => [
              ...prev, 
              { role: 'user', text: "Quiero hablar directamente con un humano y abrir un ticket." },
-             { role: 'bot', text: '✅ ¡Entendido! He generado un ticket directo de prioridad baja. Nuestro equipo lo revisará y te contactará en breve. Ve a "Mis Tickets" para agendar una videollamada si lo deseas.' }
+             { role: 'bot', text: '✅ ¡Entendido! He generado un ticket de atención directa. Nuestro equipo lo revisará y se pondrá en contacto contigo en breve para programar una llamada.' }
            ]);
         } else {
-           setMessages((prev) => [...prev, { role: 'bot', text: '✅ He generado un ticket oficial. Nuestro equipo de soporte ya fue notificado y se comunicará contigo a la brevedad. Puedes ver el estado en tu pestaña "Mis Tickets".' }]);
+           setMessages((prev) => [...prev, { role: 'bot', text: '✅ He generado un ticket oficial. Nuestro equipo de soporte ya fue notificado y se comunicará contigo a la brevedad para brindarte seguimiento.' }]);
         }
       } else { 
         throw new Error("No se pudo crear el ticket"); 
@@ -207,9 +208,43 @@ const Chatbot = ({
     } finally { setLoading(false); }
   };
 
-  const typingDotVariants = {
-    initial: { y: 0, opacity: 0.5 },
-    animate: { y: -3, opacity: 1, transition: { duration: 0.5, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" } }
+  // NUEVO: Función para procesar el ticket casual
+  const handleSubmitCasualTicket = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setShowCasualForm(false);
+
+    try {
+      const finalPriority = priority || "MEDIA";
+      const finalIssue = lastUserIssue || "El cliente omitió el chat y solicitó contacto directo.";
+      
+      const response = await fetch('http://localhost:8000/api/v1/tickets/casual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: casualData.nombre,
+          contacto: casualData.contacto,
+          equipo: casualData.equipo,
+          problema: finalIssue,
+          prioridad: finalPriority,
+          categoria: category || "General"
+        })
+      });
+
+      if (response.ok) {
+        setMessages((prev) => [
+          ...prev, 
+          { role: 'bot', text: `✅ ¡Listo, ${casualData.nombre}! He generado tu ticket como usuario invitado. Nuestro equipo analizará tu problema con el equipo ${casualData.equipo} y te contactará vía ${casualData.contacto} a la brevedad.` }
+        ]);
+        setCasualData({ nombre: '', contacto: '', equipo: '' }); // Limpiamos el form
+      } else {
+        throw new Error("Error en servidor");
+      }
+    } catch (error) {
+      setMessages((prev) => [...prev, { role: 'bot', text: '❌ Hubo un problema al crear tu reporte invitado. Por favor intenta más tarde.' }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -278,7 +313,7 @@ const Chatbot = ({
           ))}
         </AnimatePresence>
 
-        {/* --- OPCIONES INICIALES Y TICKET DIRECTO --- */}
+        {/* --- OPCIONES INICIALES --- */}
         <AnimatePresence>
           {messages.length === 1 && !loading && mode === 'cliente' && (
             <motion.div 
@@ -301,7 +336,7 @@ const Chatbot = ({
                   </div>
                   <div>
                     <h4 className="font-black text-[#0b1437] text-sm group-hover:text-blue-700 transition-colors">Omitir IA y Abrir Ticket</h4>
-                    <p className="text-[12px] text-slate-600 font-medium mt-0.5">Crear reporte directo (Prioridad Baja) para agendar cita o chatear con soporte.</p>
+                    <p className="text-[12px] text-slate-600 font-medium mt-0.5">Crear reporte directo para ser contactado por soporte técnico.</p>
                   </div>
                 </button>
               </div>
@@ -349,8 +384,36 @@ const Chatbot = ({
           )}
         </AnimatePresence>
 
+        {/* FORMULARIO PARA CLIENTES CASUALES */}
         <AnimatePresence>
-          {mode === 'cliente' && showTicketButton && (
+          {showCasualForm && (
+            <motion.div initial={{ opacity: 0, y: 15, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }} className="pl-11 pr-4">
+              <div className="bg-white border-2 border-blue-200 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -z-10"></div>
+                <div className="flex items-start gap-3 mb-4">
+                  <UserCircle className="text-blue-500 shrink-0" size={24} />
+                  <div>
+                    <h4 className="font-black text-slate-800">Soporte para Invitados</h4>
+                    <p className="text-xs text-slate-500 font-medium leading-snug mt-1">Para generar un reporte sin cuenta, compártenos estos 3 datos y un agente te contactará.</p>
+                  </div>
+                </div>
+                <form onSubmit={handleSubmitCasualTicket} className="space-y-3">
+                  <input type="text" required placeholder="Tu Nombre Completo" value={casualData.nombre} onChange={e => setCasualData({...casualData, nombre: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                  <input type="text" required placeholder="Correo electrónico o Teléfono" value={casualData.contacto} onChange={e => setCasualData({...casualData, contacto: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                  <input type="text" required placeholder="Modelo de tu equipo (Ej. Zebra ZC300)" value={casualData.equipo} onChange={e => setCasualData({...casualData, equipo: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                  
+                  <div className="flex gap-2 mt-4 pt-2">
+                    <button type="button" onClick={() => setShowCasualForm(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-xl transition-all text-sm">Cancelar</button>
+                    <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all text-sm shadow-md">Enviar Ticket</button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {mode === 'cliente' && showTicketButton && !showCasualForm && (
             <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pl-11 pr-4">
               <div className="bg-white border-2 border-amber-200 rounded-2xl p-5 shadow-lg shadow-amber-900/5 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-10"></div>
@@ -380,11 +443,11 @@ const Chatbot = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-            disabled={loading}
+            disabled={loading || showCasualForm}
           />
           <button 
             onClick={() => sendMessage()}
-            disabled={loading || !input.trim()}
+            disabled={loading || showCasualForm || !input.trim()}
             className="absolute right-2.5 bg-[#0b1437] hover:bg-blue-600 disabled:bg-slate-300 text-white w-10 h-10 rounded-full transition-all shadow-md flex items-center justify-center"
           >
             <Send size={16} className={`ml-0.5 ${loading ? 'opacity-0' : 'opacity-100'}`} />
