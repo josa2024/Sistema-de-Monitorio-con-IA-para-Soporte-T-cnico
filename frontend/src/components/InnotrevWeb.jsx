@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Store, CreditCard, AlertTriangle, ShieldAlert, UploadCloud, Camera, Sparkles } from 'lucide-react';
+import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Store, CreditCard, AlertTriangle, ShieldAlert, UploadCloud, Camera, Sparkles, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Chatbot from './Chatbot';
 import Login from './Login';
 
 const INNOTREV_CATALOG = ["Handheld Zebra TC22 / TC27", "Handheld Honeywell EDA52", "Impresora de Etiquetas Ribetec RT-420ME", "Impresora Industrial Zebra ZT411", "Impresora de Credenciales Zebra ZC300", "Tableta Industrial Uso Rudo IP67", "Lector RFID Zebra MC33"];
 
-// Variantes de animación para las tarjetas (Efecto Cascada)
+// Variantes de animación para las tarjetas
 const containerVariants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.1 } }
@@ -20,8 +20,9 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
   const [currentView, setCurrentView] = useState('home');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [equipmentList, setEquipmentList] = useState([]);
+  const [selectedProductForChat, setSelectedProductForChat] = useState(null);
   
-  // Estados del Chatbot (Memoria)
+  // Estados del Chatbot
   const [chatMessages, setChatMessages] = useState([{ role: 'bot', text: 'Hola. Soy el agente de IA de Innotrev. Estoy aquí para resolver problemas con tus equipos Zebra, Honeywell o infraestructura RFID. ¿En qué te ayudo?' }]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
@@ -30,6 +31,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
   const [chatLastUserIssue, setChatLastUserIssue] = useState('');
   const [chatCategory, setChatCategory] = useState('General / Otro');
 
+  // Estados para Modal de Pedidos y Recepción
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedEq, setSelectedEq] = useState(null);
@@ -47,46 +49,9 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
     } catch (error) { console.error(error); }
   };
 
-  const handleSolicitar = async (modelo) => {
-    setIsProcessing(true);
-    try {
-      const token = localStorage.getItem('token');
-      let userId = 2; 
-      try {
-        const payloadDecoded = JSON.parse(atob(token.split('.')[1]));
-        userId = parseInt(payloadDecoded.id || payloadDecoded.sub) || 2;
-      } catch (e) { console.warn("No se pudo leer el ID del token"); }
-
-      const snTemporal = 'REQ-' + Math.random().toString(36).substr(2, 7).toUpperCase();
-
-      const payload = {
-          modelo: modelo,
-          numero_serie: snTemporal,
-          cliente_id: userId,
-          status: "SOLICITADO"
-      };
-
-      const res = await fetch('http://localhost:8000/api/v1/equipo/', {
-        method: 'POST', 
-        headers: { 
-            'Authorization': `Bearer ${token}`, 
-            'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) { 
-          alert(`Solicitud de ${modelo} enviada a Innotrev.`); 
-          fetchData(); 
-          setCurrentView('recepcion'); 
-      } else {
-          alert("Hubo un error al procesar la solicitud.");
-      }
-    } catch (error) { 
-        console.error(error); 
-    } finally { 
-        setIsProcessing(false); 
-    }
+  const handleConsultarEquipo = (modelo) => {
+    setSelectedProductForChat(modelo);
+    setCurrentView('support');
   };
 
   const handlePagar = async (e) => {
@@ -147,7 +112,9 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
     }
   };
 
+  // Clasificación de equipos del usuario
   const pedidos = equipmentList.filter(eq => ['SOLICITADO', 'PENDIENTE_PAGO', 'EN_TRANSITO'].includes(eq.status));
+  const instalados = equipmentList.filter(eq => ['INSTALADO', 'FALLA_REPORTADA'].includes(eq.status));
 
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans flex flex-col relative overflow-hidden">
@@ -161,7 +128,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
           </div>
           <div className="flex items-center gap-2 sm:gap-6">
             <button onClick={() => setCurrentView('home')} className={`text-sm font-bold px-3 py-2 rounded-lg transition-all ${currentView === 'home' ? 'text-blue-400 bg-white/5' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}>Inicio</button>
-            <button onClick={() => {if(isAuthenticated) setCurrentView('tienda'); else setShowLoginModal(true);}} className={`text-sm font-bold px-3 py-2 rounded-lg transition-all ${currentView === 'tienda' ? 'text-blue-400 bg-white/5' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}>Catálogo</button>
+            <button onClick={() => setCurrentView('tienda')} className={`text-sm font-bold px-3 py-2 rounded-lg transition-all ${currentView === 'tienda' ? 'text-blue-400 bg-white/5' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}>Catálogo</button>
             <button onClick={() => setCurrentView('support')} className={`text-sm font-bold px-3 py-2 rounded-lg flex items-center gap-2 transition-all ${currentView === 'support' ? 'text-blue-400 bg-white/5' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}>
               <Bot size={18} className={currentView === 'support' ? 'animate-pulse text-blue-400' : 'text-emerald-400'} /> <span className="hidden sm:inline">Soporte IA</span>
             </button>
@@ -170,8 +137,9 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
             {isAuthenticated ? (
               <div className="flex items-center gap-2 sm:gap-4">
                 <div className="hidden md:flex">
+                  {/* SE RESTAURÓ EL BOTÓN DE MIS PEDIDOS */}
                   <button onClick={() => setCurrentView('recepcion')} className={`text-xs uppercase tracking-widest font-black px-4 py-2.5 rounded-xl transition-all shadow-sm ${currentView === 'recepcion' ? 'bg-blue-600 text-white shadow-blue-900/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
-                    Mis Pedidos {pedidos.length > 0 && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full ml-1.5 shadow-sm">{pedidos.length}</span>}
+                    Mi Hardware {(pedidos.length > 0 || instalados.length > 0) && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full ml-1.5 shadow-sm">{pedidos.length + instalados.length}</span>}
                   </button>
                 </div>
                 <div className="flex items-center gap-3 bg-[#0a1229] px-3 py-1.5 rounded-full border border-white/10 ml-2 shadow-inner">
@@ -199,7 +167,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
         {currentView === 'home' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1 flex flex-col">
             <div className="bg-[#050b1a] text-white py-32 px-6 text-center relative overflow-hidden flex-1 flex items-center justify-center min-h-[600px]">
-              {/* Efectos de luz de fondo */}
               <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-600/20 blur-[120px] rounded-full pointer-events-none"></div>
               <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-[#f8fafc] to-transparent z-10"></div>
               
@@ -213,11 +180,11 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                   Soluciones Tecnológicas Integrales
                 </motion.h1>
                 <motion.p initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="text-xl text-slate-300 mb-10 max-w-2xl mx-auto font-medium leading-relaxed">
-                  Adquiere equipo industrial RFID y obtén soporte predictivo con inteligencia artificial en segundos.
+                  Explora nuestro catálogo de equipo industrial RFID y obtén soporte predictivo con inteligencia artificial en segundos.
                 </motion.p>
                 <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.4 }} className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                  <button onClick={() => {if(isAuthenticated) setCurrentView('tienda'); else setShowLoginModal(true);}} className="bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-2xl text-lg font-black flex items-center gap-3 shadow-[0_0_30px_rgba(37,99,235,0.4)] transition-all hover:-translate-y-1">
-                    Ver Catálogo Comercial <ArrowRight size={20} />
+                  <button onClick={() => setCurrentView('tienda')} className="bg-blue-600 hover:bg-blue-500 px-8 py-4 rounded-2xl text-lg font-black flex items-center gap-3 shadow-[0_0_30px_rgba(37,99,235,0.4)] transition-all hover:-translate-y-1">
+                    Ver Catálogo de Equipos <ArrowRight size={20} />
                   </button>
                 </motion.div>
               </div>
@@ -225,12 +192,12 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
           </motion.div>
         )}
 
-        {/* TIENDA E-COMMERCE CON EFECTO CASCADA */}
-        {isAuthenticated && currentView === 'tienda' && (
+        {/* TIENDA E-COMMERCE PÚBLICA */}
+        {currentView === 'tienda' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 md:p-12 max-w-7xl mx-auto w-full">
              <div className="mb-12 text-center max-w-2xl mx-auto">
-               <h2 className="text-4xl font-black text-[#0b1437] mb-4">Catálogo Empresarial</h2>
-               <p className="text-slate-500 text-lg">Hardware de Uso Rudo con póliza de soporte IA incluida y asistencia técnica 24/7.</p>
+               <h2 className="text-4xl font-black text-[#0b1437] mb-4">Catálogo de Hardware</h2>
+               <p className="text-slate-500 text-lg">Conoce nuestras soluciones enterprise. ¿Tienes dudas sobre un equipo? Nuestra IA te asesora al instante.</p>
             </div>
             <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {INNOTREV_CATALOG.map(item => (
@@ -241,8 +208,8 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                     </div>
                     <h3 className="font-black text-[#0b1437] text-xl mb-3 leading-snug group-hover:text-blue-700 transition-colors">{item}</h3>
                     <p className="text-sm text-slate-500 font-medium mb-8 leading-relaxed">Solución enterprise optimizada para operaciones críticas en almacén, logística y punto de venta.</p>
-                    <button onClick={() => handleSolicitar(item)} disabled={isProcessing} className="mt-auto w-full bg-slate-50 hover:bg-[#0b1437] text-slate-600 hover:text-white font-black py-4 rounded-xl text-sm transition-all duration-300 hover:shadow-lg disabled:opacity-50">
-                      Solicitar Cotización
+                    <button onClick={() => handleConsultarEquipo(item)} className="mt-auto w-full bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white font-black py-4 rounded-xl text-sm transition-all duration-300 hover:shadow-[0_4px_15px_rgba(37,99,235,0.3)] flex items-center justify-center gap-2">
+                      <MessageSquare size={18} /> Consultar con IA
                     </button>
                  </motion.div>
               ))}
@@ -250,61 +217,116 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
           </motion.div>
         )}
 
-        {/* VISTA: MIS PEDIDOS (REDESIGN) */}
+        {/* SE RESTAURÓ LA VISTA: MIS PEDIDOS Y EQUIPOS INSTALADOS */}
         {isAuthenticated && currentView === 'recepcion' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 md:p-12 max-w-5xl mx-auto w-full">
             <div className="mb-10">
-              <h2 className="text-3xl font-black text-[#0b1437]">Mis Pedidos en Curso</h2>
-              <p className="text-slate-500 mt-2 text-lg">Sigue el estado de tus compras, realiza el pago y confirma la llegada física.</p>
+              <h2 className="text-3xl font-black text-[#0b1437]">Mi Centro de Hardware</h2>
+              <p className="text-slate-500 mt-2 text-lg">Sigue el estado de tus compras y visualiza tu equipo instalado.</p>
             </div>
-            {pedidos.length > 0 ? (
-               <div className="space-y-6">
-               {pedidos.map((eq, index) => (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }} key={eq.id} className="bg-white border border-slate-200 hover:border-slate-300 p-8 rounded-3xl shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between items-center gap-8 relative overflow-hidden group">
-                    
-                    {/* Borde izquierdo de color para indicar estado */}
-                    <div className={`absolute left-0 top-0 bottom-0 w-2 ${eq.status === 'SOLICITADO' ? 'bg-purple-400' : eq.status === 'PENDIENTE_PAGO' ? 'bg-blue-500' : 'bg-amber-400'}`}></div>
 
-                    <div className="w-full md:w-auto flex-1 pl-4">
-                      <span className={`text-[10px] font-black px-3 py-1.5 rounded-md uppercase tracking-widest mb-3 inline-block shadow-sm ${eq.status === 'SOLICITADO' ? 'bg-purple-50 text-purple-700 border border-purple-200' : eq.status === 'PENDIENTE_PAGO' ? 'bg-blue-50 text-blue-700 border border-blue-200 animate-pulse' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
-                        {eq.status.replace('_', ' ')}
-                      </span>
-                      <h3 className="font-black text-[#0b1437] text-2xl mb-1 group-hover:text-blue-700 transition-colors">{eq.modelo}</h3>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">S/N</span>
-                        <span className="text-sm text-slate-600 font-mono font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{eq.numero_serie.startsWith('REQ') ? 'Pendiente asignación...' : eq.numero_serie}</span>
-                      </div>
-                    </div>
-
-                    <div className="w-full md:w-auto shrink-0">
-                      {eq.status === 'SOLICITADO' && (
-                         <div className="text-left md:text-right bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                            <p className="text-sm font-black text-slate-700">Validando inventario</p>
-                            <p className="text-xs text-slate-500 mt-1 font-medium">Un ejecutivo revisará tu solicitud.</p>
-                         </div>
-                      )}
-                      {eq.status === 'PENDIENTE_PAGO' && (
-                         <button onClick={() => { setSelectedEq(eq); setIsPaymentModalOpen(true); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-8 rounded-2xl transition-all flex justify-center items-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.3)] hover:-translate-y-0.5">
-                           <CreditCard size={20} /> Realizar Checkout
-                         </button>
-                      )}
-                      {eq.status === 'EN_TRANSITO' && (
-                         <button onClick={() => { setSelectedEq(eq); setIsModalOpen(true); }} className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black py-4 px-8 rounded-2xl transition-all flex justify-center items-center gap-2 shadow-[0_4px_14px_rgba(245,158,11,0.3)] hover:-translate-y-0.5">
-                           <CheckCircle2 size={20} /> Registrar Llegada Física
-                         </button>
-                      )}
-                    </div>
-                  </motion.div>
-               ))}
-               </div>
-            ) : (
+            {pedidos.length === 0 && instalados.length === 0 ? (
               <div className="bg-white p-16 rounded-[2rem] shadow-sm border border-slate-200 text-center flex flex-col items-center">
                  <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6">
                    <PackageOpen size={40} className="text-slate-400" />
                  </div>
                  <h3 className="text-2xl font-black text-slate-800 mb-2">Bandeja Vacía</h3>
-                 <p className="text-slate-500 text-lg max-w-md">Visita el catálogo comercial para solicitar y adquirir nuevo hardware.</p>
+                 <p className="text-slate-500 text-lg max-w-md">Aún no tienes hardware registrado ni en proceso de envío.</p>
                  <button onClick={() => setCurrentView('tienda')} className="mt-8 bg-white border-2 border-slate-200 hover:border-blue-400 hover:text-blue-600 text-slate-600 font-bold px-6 py-3 rounded-xl transition-all">Ir al Catálogo</button>
+              </div>
+            ) : (
+              <div className="space-y-12">
+                
+                {/* PEDIDOS EN TRÁMITE */}
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <Truck className="text-blue-600" /> Pedidos en Curso
+                  </h3>
+                  
+                  {pedidos.length > 0 ? (
+                    <div className="space-y-6">
+                    {pedidos.map((eq, index) => (
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }} key={eq.id} className="bg-white border border-slate-200 hover:border-slate-300 p-8 rounded-3xl shadow-sm hover:shadow-md transition-all flex flex-col md:flex-row justify-between items-center gap-8 relative overflow-hidden group">
+                          <div className={`absolute left-0 top-0 bottom-0 w-2 ${eq.status === 'SOLICITADO' ? 'bg-purple-400' : eq.status === 'PENDIENTE_PAGO' ? 'bg-blue-500' : 'bg-amber-400'}`}></div>
+
+                          <div className="w-full md:w-auto flex-1 pl-4">
+                            <span className={`text-[10px] font-black px-3 py-1.5 rounded-md uppercase tracking-widest mb-3 inline-block shadow-sm ${eq.status === 'SOLICITADO' ? 'bg-purple-50 text-purple-700 border border-purple-200' : eq.status === 'PENDIENTE_PAGO' ? 'bg-blue-50 text-blue-700 border border-blue-200 animate-pulse' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                              {eq.status.replace('_', ' ')}
+                            </span>
+                            <h3 className="font-black text-[#0b1437] text-2xl mb-1 group-hover:text-blue-700 transition-colors">{eq.modelo}</h3>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">S/N</span>
+                              <span className="text-sm text-slate-600 font-mono font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{eq.numero_serie.startsWith('REQ') ? 'Pendiente asignación...' : eq.numero_serie}</span>
+                            </div>
+                          </div>
+
+                          <div className="w-full md:w-auto shrink-0">
+                            {eq.status === 'SOLICITADO' && (
+                               <div className="text-left md:text-right bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                                  <p className="text-sm font-black text-slate-700">Validando inventario</p>
+                                  <p className="text-xs text-slate-500 mt-1 font-medium">Un ejecutivo revisará tu solicitud.</p>
+                               </div>
+                            )}
+                            {eq.status === 'PENDIENTE_PAGO' && (
+                               <button onClick={() => { setSelectedEq(eq); setIsPaymentModalOpen(true); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 px-8 rounded-2xl transition-all flex justify-center items-center gap-2 shadow-[0_4px_14px_rgba(37,99,235,0.3)] hover:-translate-y-0.5">
+                                 <CreditCard size={20} /> Realizar Checkout
+                               </button>
+                            )}
+                            {eq.status === 'EN_TRANSITO' && (
+                               <button onClick={() => { setSelectedEq(eq); setIsModalOpen(true); }} className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black py-4 px-8 rounded-2xl transition-all flex justify-center items-center gap-2 shadow-[0_4px_14px_rgba(245,158,11,0.3)] hover:-translate-y-0.5">
+                                 <CheckCircle2 size={20} /> Registrar Llegada Física
+                               </button>
+                            )}
+                          </div>
+                        </motion.div>
+                    ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white/50 border-2 border-slate-200 border-dashed p-8 rounded-3xl text-center">
+                      <p className="text-slate-500 font-bold">No tienes pedidos en curso o pendientes de pago.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* EQUIPOS INSTALADOS */}
+                {instalados.length > 0 && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                      <ShieldCheck className="text-emerald-500" /> Equipos Instalados y Activos
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {instalados.map((eq, index) => (
+                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }} key={eq.id} className="bg-white border border-slate-200 hover:border-emerald-200 p-6 rounded-3xl shadow-sm hover:shadow-lg transition-all flex flex-col relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
+                           
+                           <div className="flex justify-between items-start mb-4 relative z-10">
+                             <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-md uppercase tracking-widest inline-block shadow-sm">
+                               Garantía Activa
+                             </span>
+                             <ShieldCheck className="text-emerald-500" size={24} />
+                           </div>
+                           
+                           <h3 className="font-black text-[#0b1437] text-xl mb-1 relative z-10">{eq.modelo}</h3>
+                           <div className="flex items-center gap-2 mt-2 mb-6 relative z-10">
+                             <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">S/N</span>
+                             <span className="text-sm text-slate-600 font-mono font-bold bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{eq.numero_serie}</span>
+                           </div>
+                           
+                           {eq.status === 'FALLA_REPORTADA' ? (
+                             <div className="mt-auto bg-amber-50 text-amber-700 p-3 rounded-xl border border-amber-200 flex items-center gap-2 text-xs font-bold relative z-10">
+                               <AlertTriangle size={16} /> En revisión por Soporte
+                             </div>
+                           ) : (
+                             <div className="mt-auto bg-slate-50 text-slate-500 p-3 rounded-xl border border-slate-100 flex items-center gap-2 text-xs font-bold relative z-10 group-hover:bg-emerald-50 group-hover:text-emerald-700 group-hover:border-emerald-200 transition-colors">
+                               <CheckCircle2 size={16} className="text-emerald-500" /> Operando correctamente
+                             </div>
+                           )}
+                         </motion.div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
               </div>
             )}
           </motion.div>
@@ -318,8 +340,8 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                 <div className="flex items-center gap-4">
                   <div className="bg-blue-500/20 text-blue-400 p-3 rounded-2xl hidden sm:block border border-blue-500/30"><ShieldAlert size={24} /></div>
                   <div>
-                    <h3 className="font-black text-lg tracking-wide">Soporte Innotrev AI</h3>
-                    <p className="text-sm text-blue-200/80 font-medium">Inicia sesión para vincular tu equipo y generar un ticket oficial, o chatea como invitado.</p>
+                    <h3 className="font-black text-lg tracking-wide">Soporte y Consultas Innotrev</h3>
+                    <p className="text-sm text-blue-200/80 font-medium">Inicia sesión para vincular tu equipo a un ticket oficial, o chatea como invitado.</p>
                   </div>
                 </div>
                 <button onClick={() => setShowLoginModal(true)} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-sm font-black shadow-md whitespace-nowrap hover:bg-blue-500 transition-colors">Ingresar</button>
@@ -344,13 +366,14 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                 setLastUserIssue={setChatLastUserIssue}
                 category={chatCategory}
                 setCategory={setChatCategory}
+                selectedProduct={selectedProductForChat} 
               />
             </div>
           </motion.div>
         )}
       </main>
 
-      {/* MODALES DE ACCIÓN */}
+      {/* SE RESTAURARON LAS MODALES DE ACCIÓN */}
       <AnimatePresence>
         
         {/* MODAL DE PAGO (CHECKOUT STRIPE-LIKE) */}
@@ -409,7 +432,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                
                <form onSubmit={handleConfirmarRecepcion} className="p-8 space-y-6">
                  
-                 {/* Select Elegante */}
                   <div>
                     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Estado Físico del Empaque <span className="text-red-500">*</span></label>
                     <select required value={formRecepcion.estado_empaque} onChange={e => setFormRecepcion({...formRecepcion, estado_empaque: e.target.value})} className="w-full border border-slate-200 p-4 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-400 bg-slate-50 transition-all appearance-none cursor-pointer">

@@ -26,7 +26,8 @@ const Chatbot = ({
   lastUserIssue,     
   setLastUserIssue,  
   category,          
-  setCategory        
+  setCategory,
+  selectedProduct = null // NUEVA PROP: Recibe el producto del catálogo
 }) => {
   
   const messagesEndRef = useRef(null);
@@ -36,12 +37,28 @@ const Chatbot = ({
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   useEffect(() => { scrollToBottom(); }, [messages, loading, showTicketButton, showCasualForm]);
 
+  // NUEVO EFECTO: Ajustar el mensaje de bienvenida si viene del catálogo
+  useEffect(() => {
+    if (selectedProduct && mode === 'cliente') {
+      setMessages([{ 
+        role: 'bot', 
+        text: `Hola. Soy el agente de IA de Innotrev. Veo que te interesa consultar sobre el equipo **${selectedProduct}**. \n\n¿Tienes alguna duda técnica, deseas cotizarlo o necesitas ayuda para su instalación?` 
+      }]);
+      // Pre-configuramos el campo oculto por si el cliente pide ticket inmediatamente
+      setLastUserIssue(`Consulta generada desde el catálogo para el equipo: ${selectedProduct}`);
+      // Llenamos por defecto el formulario de invitado con el equipo
+      setCasualData(prev => ({ ...prev, equipo: selectedProduct }));
+    }
+  }, [selectedProduct, mode, setMessages, setLastUserIssue]);
+
   const handleResetChat = () => {
     setMessages([{ 
       role: 'bot', 
       text: mode === 'admin' 
         ? 'Sistemas en línea. Soy la IA de diagnóstico técnico de Innotrev.' 
-        : 'Hola. Soy el agente de IA de Innotrev. Estoy aquí para resolver problemas con tus equipos Zebra, Honeywell o infraestructura RFID. ¿En qué te ayudo?' 
+        : (selectedProduct 
+            ? `Hola. Soy el agente de IA de Innotrev. Veo que te interesa consultar sobre el equipo **${selectedProduct}**. ¿En qué te ayudo?`
+            : 'Hola. Soy el agente de IA de Innotrev. Estoy aquí para resolver problemas con tus equipos Zebra, Honeywell o infraestructura RFID. ¿En qué te ayudo?')
     }]);
     setInput('');
     setPriority(null);
@@ -76,6 +93,12 @@ const Chatbot = ({
     const textToSend = typeof overrideText === 'string' ? overrideText : input;
     if (!textToSend.trim()) return;
 
+    // Si viene del catálogo y es el primer mensaje del usuario, le agregamos el contexto oculto para que la IA sepa de qué hablan
+    let textForAI = textToSend;
+    if (messages.length === 1 && selectedProduct) {
+       textForAI = `Sobre el equipo ${selectedProduct}: ${textToSend}`;
+    }
+
     const userMsg = { role: 'user', text: textToSend };
     setMessages((prev) => [...prev, userMsg]);
     setLastUserIssue(textToSend);
@@ -92,7 +115,7 @@ const Chatbot = ({
       const response = await fetch('http://localhost:8000/api/v1/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ message: userMsg.text })
+        body: JSON.stringify({ message: textForAI }) // Enviamos el texto con contexto a la IA
       });
 
       if (!response.ok) throw new Error('Error en el servidor');
@@ -151,7 +174,6 @@ const Chatbot = ({
   };
 
   const handleCreateTicket = async (isDirect = false) => {
-    // NUEVO FLUJO: Si no está logueado, le mostramos el mini-formulario en lugar de bloquearlo.
     if (!isAuthenticated) {
       setShowCasualForm(true);
       setShowTicketButton(false);
@@ -208,7 +230,6 @@ const Chatbot = ({
     } finally { setLoading(false); }
   };
 
-  // NUEVO: Función para procesar el ticket casual
   const handleSubmitCasualTicket = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -234,9 +255,9 @@ const Chatbot = ({
       if (response.ok) {
         setMessages((prev) => [
           ...prev, 
-          { role: 'bot', text: `✅ ¡Listo, ${casualData.nombre}! He generado tu ticket como usuario invitado. Nuestro equipo analizará tu problema con el equipo ${casualData.equipo} y te contactará vía ${casualData.contacto} a la brevedad.` }
+          { role: 'bot', text: `✅ ¡Listo, ${casualData.nombre}! He generado tu solicitud como invitado. Nuestro equipo la analizará y te contactará vía ${casualData.contacto} a la brevedad.` }
         ]);
-        setCasualData({ nombre: '', contacto: '', equipo: '' }); // Limpiamos el form
+        setCasualData({ nombre: '', contacto: '', equipo: '' }); 
       } else {
         throw new Error("Error en servidor");
       }
@@ -263,7 +284,7 @@ const Chatbot = ({
             <h2 className="font-black text-lg tracking-wide flex items-center gap-2">
               Innotrev AI <Sparkles size={16} className="text-blue-300" />
             </h2>
-            <p className="text-blue-200/80 text-xs font-medium">Asistente de Nivel 0 • Respuestas inmediatas</p>
+            <p className="text-blue-200/80 text-xs font-medium">Asistente y Soporte Inmediato</p>
           </div>
         </div>
         
@@ -335,32 +356,34 @@ const Chatbot = ({
                     <Ticket size={24} />
                   </div>
                   <div>
-                    <h4 className="font-black text-[#0b1437] text-sm group-hover:text-blue-700 transition-colors">Omitir IA y Abrir Ticket</h4>
-                    <p className="text-[12px] text-slate-600 font-medium mt-0.5">Crear reporte directo para ser contactado por soporte técnico.</p>
+                    <h4 className="font-black text-[#0b1437] text-sm group-hover:text-blue-700 transition-colors">Solicitar Cotización o Ayuda</h4>
+                    <p className="text-[12px] text-slate-600 font-medium mt-0.5">Crear solicitud directa para ser contactado por ventas o soporte.</p>
                   </div>
                 </button>
               </div>
 
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <Zap size={14} className="text-amber-500" /> Soluciones Rápidas Frecuentes
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {QUICK_ACTIONS.map((action, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => sendMessage(action.prompt)}
-                      className="text-left bg-white border border-blue-100 hover:border-blue-400 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group flex items-start gap-3"
-                    >
-                      <span className="text-2xl mt-0.5">{action.emoji}</span>
-                      <div>
-                        <h4 className="font-bold text-[#0b1437] text-[13px] group-hover:text-blue-600 transition-colors leading-tight mb-1">{action.title}</h4>
-                        <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{action.prompt}</p>
-                      </div>
-                    </button>
-                  ))}
+              {!selectedProduct && (
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                    <Zap size={14} className="text-amber-500" /> Soluciones Rápidas Frecuentes
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {QUICK_ACTIONS.map((action, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => sendMessage(action.prompt)}
+                        className="text-left bg-white border border-blue-100 hover:border-blue-400 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all group flex items-start gap-3"
+                      >
+                        <span className="text-2xl mt-0.5">{action.emoji}</span>
+                        <div>
+                          <h4 className="font-bold text-[#0b1437] text-[13px] group-hover:text-blue-600 transition-colors leading-tight mb-1">{action.title}</h4>
+                          <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">{action.prompt}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -393,18 +416,18 @@ const Chatbot = ({
                 <div className="flex items-start gap-3 mb-4">
                   <UserCircle className="text-blue-500 shrink-0" size={24} />
                   <div>
-                    <h4 className="font-black text-slate-800">Soporte para Invitados</h4>
-                    <p className="text-xs text-slate-500 font-medium leading-snug mt-1">Para generar un reporte sin cuenta, compártenos estos 3 datos y un agente te contactará.</p>
+                    <h4 className="font-black text-slate-800">Atención Personalizada</h4>
+                    <p className="text-xs text-slate-500 font-medium leading-snug mt-1">Ingresa tus datos y un agente te contactará sobre el equipo seleccionado.</p>
                   </div>
                 </div>
                 <form onSubmit={handleSubmitCasualTicket} className="space-y-3">
                   <input type="text" required placeholder="Tu Nombre Completo" value={casualData.nombre} onChange={e => setCasualData({...casualData, nombre: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
                   <input type="text" required placeholder="Correo electrónico o Teléfono" value={casualData.contacto} onChange={e => setCasualData({...casualData, contacto: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
-                  <input type="text" required placeholder="Modelo de tu equipo (Ej. Zebra ZC300)" value={casualData.equipo} onChange={e => setCasualData({...casualData, equipo: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
+                  <input type="text" required placeholder="Modelo de tu equipo" value={casualData.equipo} onChange={e => setCasualData({...casualData, equipo: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" />
                   
                   <div className="flex gap-2 mt-4 pt-2">
                     <button type="button" onClick={() => setShowCasualForm(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-xl transition-all text-sm">Cancelar</button>
-                    <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all text-sm shadow-md">Enviar Ticket</button>
+                    <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all text-sm shadow-md">Enviar Datos</button>
                   </div>
                 </form>
               </div>
@@ -439,7 +462,7 @@ const Chatbot = ({
           <input
             type="text"
             className="w-full bg-slate-100 border border-transparent rounded-full pl-6 pr-14 py-4 text-[15px] focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder:text-slate-400 font-medium text-slate-700 shadow-inner"
-            placeholder="O escribe tu problema de forma manual aquí..."
+            placeholder="O escribe tu duda manualmente aquí..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
@@ -453,7 +476,7 @@ const Chatbot = ({
             <Send size={16} className={`ml-0.5 ${loading ? 'opacity-0' : 'opacity-100'}`} />
           </button>
         </div>
-        <p className="text-center text-[10px] text-slate-400 mt-2 font-medium">La IA puede cometer errores. Verifica el estado de tu equipo físico.</p>
+        <p className="text-center text-[10px] text-slate-400 mt-2 font-medium">La IA te asesora en preventa y soporte. Confirma la información con un agente humano.</p>
       </div>
     </div>
   );
