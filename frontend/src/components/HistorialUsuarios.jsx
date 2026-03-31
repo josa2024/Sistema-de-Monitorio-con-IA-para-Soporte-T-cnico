@@ -182,7 +182,7 @@ const HistorialUsuarios = () => {
                         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                           <div className="flex justify-between items-start mb-1">
                             <h4 className="font-black text-[#0b1437]">{ev.title}</h4>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md">{new Date(ev.date).toLocaleDateString()}</span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-1 rounded-md">{new Date(ev.date).toLocaleString()}</span>
                           </div>
                           <p className="text-sm text-slate-600 font-medium mt-2 leading-relaxed">{ev.desc}</p>
                         </div>
