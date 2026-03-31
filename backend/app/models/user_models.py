@@ -34,4 +34,4 @@ class User(Base):
     reportes = relationship("app.models.monitoring_models.ReporteAnomalias", back_populates="cliente")
     
     # CORRECCIÓN: Actualizamos la relación a ComentarioTicket
-    comentarios = relationship("app.models.ticket.ComentarioTicket")
+    comentarios = relationship("app.models.ticket.ComentarioTicket", back_populates="autor")

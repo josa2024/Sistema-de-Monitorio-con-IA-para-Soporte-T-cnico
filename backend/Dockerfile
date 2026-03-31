@@ -21,15 +21,25 @@ FROM python:3.13-slim
 # Creamos un grupo y un usuario sin privilegios de root para ejecutar la aplicación
 RUN addgroup --system app && adduser --system --group app
 
-# Cambiamos al usuario no-root
-USER app
-
 WORKDIR /home/app
 
-# Copiamos las dependencias instaladas desde la etapa de "builder"
+# Copiamos las dependencias instaladas (librerías y binarios) desde la etapa de "builder"
 COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
 # Copiamos el código de la aplicación
 COPY --chown=app:app ./ /home/app
+
+# Creamos los directorios necesarios para uploads con permisos correctos
+RUN mkdir -p /home/app/uploads/licenses \
+    /home/app/uploads/evidencias \
+    /home/app/uploads/evidence \
+    /home/app/uploads/tickets \
+    /home/app/uploads/licencias && \
+    chown -R app:app /home/app/uploads
+
+# Cambiamos al usuario no-root
+USER app
 
 # Expone el puerto que usará la aplicación. 8000 es el estándar para FastAPI.
 EXPOSE 8000

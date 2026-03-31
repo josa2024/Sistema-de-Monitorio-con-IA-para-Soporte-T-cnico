@@ -58,7 +58,7 @@ class ComentarioTicket(Base):
 
     # Relaciones
     ticket = relationship("Ticket", back_populates="comentarios")
-    autor = relationship("app.models.user_models.User", foreign_keys=[autor_id])
+    autor = relationship("app.models.user_models.User", back_populates="comentarios", foreign_keys=[autor_id])
 
 
 class TicketLog(Base):

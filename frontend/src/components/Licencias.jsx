@@ -39,17 +39,19 @@ const Licencias = () => {
 
   const handleCreateLicense = async (e) => {
     e.preventDefault();
-    if (!selectedEquipment || !form.file) return alert("Falta equipo o PDF.");
+    if (!selectedEquipment) return alert("Selecciona un equipo.");
+    if (!form.nombre_software) return alert("Ingresa el nombre del software.");
+    if (!form.licencia_key && !form.file) return alert("Proporciona una clave de producto o un archivo PDF.");
     setIsProcessing(true);
     try {
       const formData = new FormData();
-      formData.append('equipo_id', selectedEquipment.id);
-      formData.append('tipo', form.tipo);
+      formData.append('equipment_id', selectedEquipment.id);
+      formData.append('tipo_licencia', form.tipo);
       formData.append('nombre_software', form.nombre_software);
-      if (form.licencia_key) formData.append('licencia_key', form.licencia_key);
+      if (form.licencia_key) formData.append('clave_producto', form.licencia_key);
       formData.append('fecha_inicio', form.fecha_inicio);
-      formData.append('fecha_vencimiento', form.fecha_vencimiento);
-      formData.append('file', form.file);
+      if (form.fecha_vencimiento) formData.append('fecha_vencimiento', form.fecha_vencimiento);
+      if (form.file) formData.append('file', form.file);
 
       const res = await fetch('http://localhost:8000/api/v1/licencias/', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
       if (res.ok) {

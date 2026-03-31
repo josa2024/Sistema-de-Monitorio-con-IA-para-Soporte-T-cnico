@@ -14,7 +14,7 @@ celery==5.4.0
 redis==5.0.3 # Requerido por Celery como broker y backend
 
 # --- Autenticación y Seguridad ---
-passlib[bcrypt]==1.7.4 # Para hashing de contraseñas
+passlib[argon2]==1.7.4 # Para hashing de contraseñas
 python-jose[cryptography]==3.5.0 # Para la creación y validación de JWTs
 python-multipart==0.0.22 # Para procesar formularios (ej. subida de archivos)
 

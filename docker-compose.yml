@@ -54,6 +54,8 @@ services:
     volumes:
       # Montamos el código fuente para que el hot-reload funcione
       - ./backend:/home/app
+      # Volumen administrado por Docker para evitar conflictos de permisos
+      - uploads_data:/home/app/uploads
     env_file:
       - ./backend/.env
     depends_on:
@@ -73,6 +75,7 @@ services:
     command: celery -A app.core.celery_app.celery_app worker --loglevel=info
     volumes:
       - ./backend:/home/app
+      - uploads_data:/home/app/uploads
     env_file:
       - ./backend/.env
     depends_on:
@@ -94,6 +97,7 @@ services:
     command: celery -A app.core.celery_app.celery_app beat --loglevel=info
     volumes:
       - ./backend:/home/app
+      - uploads_data:/home/app/uploads
     env_file:
       - ./backend/.env
     depends_on:
@@ -124,6 +128,8 @@ services:
 # --- Volúmenes y Redes ---
 volumes:
   postgres_data:
+    driver: local
+  uploads_data:
     driver: local
 
 networks:
