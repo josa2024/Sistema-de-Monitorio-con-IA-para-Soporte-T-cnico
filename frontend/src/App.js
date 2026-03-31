@@ -3,7 +3,7 @@ import { LayoutDashboard, Package, ShieldCheck, UserCircle, LogOut, Users, Ticke
 import { motion, AnimatePresence } from 'framer-motion'; // Agregamos animaciones
 import Dashboard from './components/Dashboard';
 import Inventario from './components/Inventario';
-import Garantias from './components/Garantias';
+import Licencias from './components/Licencias';
 import HistorialUsuarios from './components/HistorialUsuarios'; 
 import InnotrevWeb from './components/InnotrevWeb'; 
 import ClienteTickets from './components/ClienteTickets';
@@ -91,14 +91,13 @@ function App() {
           <NavItem id="dashboard" icon={LayoutDashboard} label="Dashboard General" />
           <NavItem id="inventario" icon={Package} label="Gestión de Inventario" />
           <NavItem id="historial" icon={Users} label="Historial de Usuarios" />
-          <NavItem id="polizas" icon={ShieldCheck} label="Bóveda de Pólizas" />
+          <NavItem id="polizas" icon={ShieldCheck} label="Licencias" />
+          <NavItem id="cliente_garantias" icon={Award} label="Garantías" />
+          <NavItem id="cliente_tickets" icon={Ticket} label="Tickets" />
 
           <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-6"></div>
           
-          <p className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Seguimiento Global</p>
-
-          <NavItem id="cliente_garantias" icon={Award} label="Garantías de Equipos" />
-          <NavItem id="cliente_tickets" icon={Ticket} label="Todos los Tickets" />
+          
         </nav>
 
         {/* PERFIL DE USUARIO Y LOGOUT */}
@@ -130,7 +129,7 @@ function App() {
             {activeTab === 'dashboard' && <Dashboard />}
             {activeTab === 'inventario' && <Inventario />}
             {activeTab === 'historial' && <HistorialUsuarios />}
-            {activeTab === 'polizas' && <Garantias />}
+            {activeTab === 'polizas' && <Licencias />}
             {activeTab === 'cliente_garantias' && <ClienteGarantias />}
             {activeTab === 'cliente_tickets' && <ClienteTickets />}
           </motion.div>

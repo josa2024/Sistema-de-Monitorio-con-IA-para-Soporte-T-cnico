@@ -73,8 +73,8 @@ const Licencias = () => {
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-8 h-full flex flex-col">
       <div>
-        <h1 className="text-3xl font-black text-[#0b1437]">Bóveda de Garantías</h1>
-        <p className="text-slate-500 mt-1 font-medium">Gestión de software, llaves de activación y pólizas físicas.</p>
+        <h1 className="text-3xl font-black text-[#0b1437]">Bóveda de Licencias</h1>
+        <p className="text-slate-500 mt-1 font-medium">Gestión centralizada de licencias de software, llaves de activación y certificados de garantía.</p>
       </div>
 
       {expiringLicenses.length > 0 && (
@@ -130,7 +130,7 @@ const Licencias = () => {
                   <p className="text-sm text-blue-600 font-mono font-black tracking-widest mt-1">S/N: {selectedEquipment.numero_serie}</p>
                 </div>
                 <button onClick={() => setIsModalOpen(true)} className="bg-[#0b1437] hover:bg-blue-800 text-white px-6 py-3.5 rounded-2xl text-sm font-black flex items-center gap-2 transition-all shadow-lg shadow-blue-900/20 hover:scale-105">
-                  <Plus size={18} /> Asignar Póliza
+                  <Plus size={18} /> Agregar Licencia
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50 custom-scrollbar">
@@ -182,7 +182,7 @@ const Licencias = () => {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b1437]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h2 className="font-black text-[#0b1437] text-xl flex items-center gap-2"><Key className="text-blue-600" size={22}/> Nueva Protección</h2>
+                <h2 className="font-black text-[#0b1437] text-xl flex items-center gap-2"><Key className="text-blue-600" size={22}/> Nueva Licencia</h2>
                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-full shadow-sm transition-colors"><X size={18} /></button>
               </div>
               <form onSubmit={handleCreateLicense} className="p-8 space-y-5">

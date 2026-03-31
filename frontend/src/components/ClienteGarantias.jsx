@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Download, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiClient } from '../services/api'; // Asumiendo que creas api.js en src/services
 
 const ClienteGarantias = () => {
   const [equiposInstalados, setEquiposInstalados] = useState([]);
@@ -11,14 +12,9 @@ const ClienteGarantias = () => {
   useEffect(() => {
     const fetchEquipos = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setEquiposInstalados(data.filter(eq => eq.status === 'INSTALADO' || eq.status === 'FALLA_REPORTADA'));
-        }
+        // Usamos el cliente API centralizado
+        const data = await apiClient('/equipo/');
+        setEquiposInstalados(data.filter(eq => eq.status === 'INSTALADO' || eq.status === 'FALLA_REPORTADA'));
       } catch (error) {
         console.error("Error:", error);
       }
@@ -30,24 +26,15 @@ const ClienteGarantias = () => {
     setSelectedEqLicencias(eq);
     setIsLoadingLicencias(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${eq.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) setLicenciasCliente(await res.json());
-    } catch (e) { console.error(e); } 
+      const data = await apiClient(`/licencias/equipo/${eq.id}`);
+      setLicenciasCliente(data);
+    } catch (e) { console.error(e); setLicenciasCliente([]); } // Limpiar en caso de error
     finally { setIsLoadingLicencias(false); }
   };
 
   const handleDownloadCertificado = async (licenseId, nombre) => {
     try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:8000/api/v1/licencias/descargar/${licenseId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) throw new Error("No hay archivo");
-        
-        const blob = await response.blob();
+        const blob = await apiClient(`/licencias/descargar/${licenseId}`, { responseType: 'blob' });
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = downloadUrl;
