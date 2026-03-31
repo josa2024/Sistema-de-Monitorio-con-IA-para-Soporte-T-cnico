@@ -1,4 +1,3 @@
-
 import enum
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Date, Enum
 from sqlalchemy.orm import relationship
@@ -28,6 +27,7 @@ class License(Base):
     # Campos para almacenar la clave o el archivo de la licencia.
     clave_producto = Column(String(255), nullable=True)
     archivo_url = Column(String(512), nullable=True)
+    filename = Column(String(255), nullable=True) # Agregado para guardar el nombre original del archivo
 
     # Campo de auditoría para saber cuándo se creó el registro.
     fecha_creacion = Column(DateTime(timezone=True), server_default=func.now())

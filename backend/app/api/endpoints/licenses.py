@@ -10,8 +10,12 @@ from sqlalchemy.orm import Session
 from app.api import deps
 from app.models.license_models import License, LicenseType
 from app.models.user_models import User
+from app.services.equipment_service import EquipmentService
+from app.schemas.equipment import EquipmentResponse
+from sqlalchemy import select
 
 router = APIRouter()
+equipment_service = EquipmentService()
 
 UPLOAD_DIR = "uploads/licenses"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -20,17 +24,30 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 def create_license(
     *,
     db: Session = Depends(deps.get_db),
-    equipo_id: int = Form(...),
-    tipo: str = Form(...),
+    equipment_id: int = Form(...),
     nombre_software: str = Form(...),
-    licencia_key: str | None = Form(None),
-    fecha_inicio: str | None = Form(None),
-    fecha_vencimiento: str | None = Form(None),
+    tipo_licencia: LicenseType = Form(...),
+    fecha_inicio: datetime = Form(...),
+    fecha_vencimiento: datetime | None = Form(None),
+    clave_producto: str | None = Form(None),
     file: UploadFile | None = File(None),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Crea una licencia vinculada a un equipo traduciendo al modelo real"""
+    """
+    Sube y asigna una licencia de software a un equipo.
+    Acepta archivo físico (PDF/Txt) y/o Product Key.
+    """
+    if not clave_producto and not file:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe proporcionar al menos un archivo o una Product Key (clave_producto)."
+        )
+
+    equipment_service.get_equipment_by_id(db=db, equipment_id=equipment_id)
+
     file_path = None
+    filename = None
+
     if file:
         try:
             timestamp = int(datetime.now().timestamp())
@@ -56,20 +73,17 @@ def create_license(
         except:
             pass
 
-    # Mapear el string del Frontend al Enum del Backend
-    lic_type = LicenseType.Suscripcion
-    if tipo == "GARANTIA":
-        lic_type = LicenseType.Perpetua
-
     db_license = License(
-        equipment_id=equipo_id,            # Frontend manda equipo_id
-        tipo_licencia=lic_type,            # Frontend manda tipo
+        equipment_id=equipment_id,
         nombre_software=nombre_software,
+        tipo_licencia=tipo_licencia,
         fecha_inicio=dt_inicio,
         fecha_vencimiento=dt_vencimiento,
-        clave_producto=licencia_key,       # Frontend manda licencia_key
-        archivo_url=file_path,             # Frontend espera descargar el file
+        clave_producto=clave_producto,
+        archivo_url=file_path,
+        filename=filename,
     )
+    
     db.add(db_license)
     db.commit()
     db.refresh(db_license)
@@ -126,14 +140,37 @@ def download_license(
     license_id: int,
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Descarga el PDF físico usando la columna correcta"""
-    license_obj = db.query(License).filter(License.id == license_id).first()
-    if not license_obj or not license_obj.archivo_url or not os.path.exists(license_obj.archivo_url):
-        raise HTTPException(status_code=404, detail="Archivo no encontrado en el servidor.")
+    """Descarga el archivo de licencia asociado."""
+    stmt = select(License).where(License.id == license_id)
+    license_obj = db.execute(stmt).scalar_one_or_none()
 
-    filename = os.path.basename(license_obj.archivo_url)
+    if not license_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Licencia no encontrada."
+        )
+
+    if not license_obj.archivo_url or not os.path.exists(license_obj.archivo_url):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El archivo físico no existe en el servidor."
+        )
+
+    download_name = license_obj.filename if license_obj.filename else "licencia.pdf"
+
     return FileResponse(
-        path=license_obj.archivo_url, 
-        filename=filename,
+        path=license_obj.archivo_url,
+        filename=download_name,
         media_type='application/octet-stream'
     )
+
+@router.get("/warranties/alerts", response_model=list[EquipmentResponse])
+def get_warranty_alerts(
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Devuelve equipos cuyas garantías vencen en los próximos 30 días.
+    Utiliza la lógica centralizada en EquipmentService.
+    """
+    return equipment_service.get_warranty_alerts(db)
