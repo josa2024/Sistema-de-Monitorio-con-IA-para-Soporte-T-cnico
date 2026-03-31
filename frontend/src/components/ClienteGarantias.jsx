@@ -3,7 +3,7 @@ import { ShieldCheck, Download, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../services/api'; // Asumiendo que creas api.js en src/services
 
-const ClienteGarantias = () => {
+const Garantias = () => {
   const [equiposInstalados, setEquiposInstalados] = useState([]);
   const [selectedEqLicencias, setSelectedEqLicencias] = useState(null);
   const [licenciasCliente, setLicenciasCliente] = useState([]);
@@ -130,4 +130,4 @@ const ClienteGarantias = () => {
   );
 };
 
-export default ClienteGarantias;
+export default Garantias;

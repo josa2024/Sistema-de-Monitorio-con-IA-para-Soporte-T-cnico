@@ -17,7 +17,7 @@ const itemVariants = {
 };
 
 const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) => {
-  const [currentView, setCurrentView] = useState('home');
+  const [currentView, setCurrentView] = useState(localStorage.getItem('innotrevCurrentView') || 'home');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [equipmentList, setEquipmentList] = useState([]);
   const [selectedProductForChat, setSelectedProductForChat] = useState(null);
@@ -39,7 +39,13 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
   const [formRecepcion, setFormRecepcion] = useState({ estado_empaque: 'Excelente', confirmacion_encendido: false, notas: '' });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => { if (isAuthenticated) fetchData(); }, [isAuthenticated]);
+  useEffect(() => {
+    if (isAuthenticated) fetchData();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    localStorage.setItem('innotrevCurrentView', currentView);
+  }, [currentView]);
 
   const fetchData = async () => {
     try {

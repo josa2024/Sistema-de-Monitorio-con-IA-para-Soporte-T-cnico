@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Package, ShieldCheck, UserCircle, LogOut, Users, Ticket, Award, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion'; // Agregamos animaciones
 import Dashboard from './components/Dashboard';
@@ -7,13 +7,17 @@ import Licencias from './components/Licencias';
 import HistorialUsuarios from './components/HistorialUsuarios'; 
 import InnotrevWeb from './components/InnotrevWeb'; 
 import ClienteTickets from './components/ClienteTickets';
-import ClienteGarantias from './components/ClienteGarantias';
+import Garantias from './components/Garantias';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
   const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || null);
   const [userName, setUserName] = useState(localStorage.getItem('userName') || '');
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(localStorage.getItem('activeTab') || 'dashboard');
+
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+  }, [activeTab]);
 
   const handleLoginSuccess = (token, role, nombre) => {
     localStorage.setItem('token', token);
@@ -130,7 +134,7 @@ function App() {
             {activeTab === 'inventario' && <Inventario />}
             {activeTab === 'historial' && <HistorialUsuarios />}
             {activeTab === 'polizas' && <Licencias />}
-            {activeTab === 'cliente_garantias' && <ClienteGarantias />}
+            {activeTab === 'cliente_garantias' && <Garantias />}
             {activeTab === 'cliente_tickets' && <ClienteTickets />}
           </motion.div>
         </AnimatePresence>
