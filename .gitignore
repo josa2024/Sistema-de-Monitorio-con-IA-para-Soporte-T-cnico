@@ -13,6 +13,8 @@ frontend/.env
 # Directorio donde los usuarios suben archivos (imágenes, documentos, etc.).
 # Es importante ignorarlo para no versionar datos de producción o prueba.
 /uploads/
+/backend/uploads/
+/frontend/uploads/
 
 # --- 3. Dependencias y Entornos Virtuales ---
 # Python
