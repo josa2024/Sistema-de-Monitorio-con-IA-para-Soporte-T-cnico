@@ -121,41 +121,96 @@ const Dashboard = () => {
   };
 
   const handleResolveTicket = async () => {
+    if (!selectedTicket?.id) {
+      console.warn('[Resolver] No hay ticket seleccionado');
+      return;
+    }
+
     setIsProcessing(true);
+    const token = localStorage.getItem('token') || '';
+
     try {
-      const token = localStorage.getItem('token') || '';
-      await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, { 
-        method: 'PATCH', 
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ estado: "RESUELTO" }) 
+      const response = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ estado: 'RESUELTO' })
       });
-      await fetchData(); handleCloseModal();
-    } finally { setIsProcessing(false); }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Error actualizando estado (resolve): ${response.status} - ${errorText}`);
+      }
+
+      await fetchData();
+      handleCloseModal();
+    } catch (error) {
+      console.error('[Resolver] fetch error:', error);
+      alert('No se pudo resolver el ticket. Revisa la consola y el backend.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleScheduleCall = async () => {
-    if (!scheduledDate) return;
-    setIsProcessing(true);
-    try {
-      const token = localStorage.getItem('token') || '';
-      await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, { 
-        method: 'PATCH', 
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ fecha_agendada: scheduledDate }) 
-      });
-      await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { 
-        method: 'POST', 
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ contenido: `Videollamada de soporte agendada para el ${new Date(scheduledDate).toLocaleString()}` }) 
-      });
-      
-      await fetchData();
-      setSelectedTicket({ ...selectedTicket, fecha_agendada: scheduledDate });
-      
-      const res = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) setComments(await res.json());
+    if (!selectedTicket?.id || !scheduledDate) {
+      console.warn('[Horario] Ticket no seleccionado o fecha no válida');
+      return;
+    }
 
-    } finally { setIsProcessing(false); }
+    setIsProcessing(true);
+    const token = localStorage.getItem('token') || '';
+    const fechaIso = new Date(scheduledDate).toISOString();
+
+    const apiBase = 'http://localhost:8000/api/v1';
+
+    try {
+      const updateResponse = await fetch(`${apiBase}/tickets/${selectedTicket.id}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ fecha_agendada: fechaIso })
+      });
+
+      if (!updateResponse.ok) {
+        const errorText = await updateResponse.text();
+        throw new Error(`Error actualizando ticket: ${updateResponse.status} - ${errorText}`);
+      }
+
+      const commentPayload = {
+        contenido: `Videollamada de soporte agendada para el ${new Date(fechaIso).toLocaleString()}`
+      };
+      const commentResponse = await fetch(`${apiBase}/tickets/${selectedTicket.id}/comments`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(commentPayload)
+      });
+
+      if (!commentResponse.ok) {
+        const errorText = await commentResponse.text();
+        throw new Error(`Error creando comentario: ${commentResponse.status} - ${errorText}`);
+      }
+
+      await fetchData();
+      setSelectedTicket({ ...selectedTicket, fecha_agendada: fechaIso });
+
+      const res = await fetch(`${apiBase}/tickets/${selectedTicket.id}/comments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) setComments(await res.json());
+    } catch (error) {
+      console.error('[Horario] fetch error:', error);
+      alert('Error al agendar la videollamada. Revisa consola o servidor para más detalles.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (isLoading) return <div className="flex flex-col items-center justify-center h-full text-slate-500"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b1437] mb-4"></div><p>Sincronizando Módulos...</p></div>;

@@ -120,17 +120,46 @@ def read_ticket(*, db: Session = Depends(deps.get_db), ticket_id: int) -> Any:
 
 @router.patch("/{ticket_id}", response_model=TicketResponse)
 def update_ticket(
-    *, db: Session = Depends(deps.get_db), ticket_id: int, ticket_in: TicketUpdate, current_user: User = Depends(deps.get_current_active_user)
+    *,
+    db: Session = Depends(deps.get_db),
+    ticket_id: int,
+    ticket_in: TicketUpdate,
+    current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket: raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
 
-    if ticket_in.estado is not None: ticket.status = ticket_in.estado
-    if ticket_in.prioridad is not None: ticket.prioridad = ticket_in.prioridad
-    if ticket_in.fecha_agendada is not None: ticket.fecha_agendada = ticket_in.fecha_agendada
+    update_data = ticket_in.dict(exclude_unset=True)
 
-    log_db = TicketLog(ticket_id=ticket.id, usuario_id=current_user.id, accion="ACTUALIZACION", detalles={"mensaje": "El ticket ha sido modificado exitosamente."})
+    # Normalizar alias de actualización (estado -> status)
+    normalized_update = {}
+    for field, value in update_data.items():
+        real_field = "status" if field == "estado" else field
+        normalized_update[real_field] = value
+
+    # LA MAGIA DE JOSSY: Guarda los valores viejos antes de cambiarlos
+    old_values = {
+        k: (v.value if hasattr(v, 'value') else v)
+        for k, v in {field: getattr(ticket, field) for field in normalized_update.keys()}.items()
+    }
+
+    # Serializa datetime en los detalles del log para evitar JSON serialización fallida
+    def to_serializable(value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
+
+    old_values_safe = {k: to_serializable(v) for k, v in old_values.items()}
+    update_data_safe = {k: to_serializable(v) for k, v in normalized_update.items()}
+
+    for field, value in normalized_update.items():
+        setattr(ticket, field, value)
+
+    # Creamos el log avanzado de Jossy con el "antes" y "despues"
+    log_db = TicketLog(ticket_id=ticket.id, usuario_id=current_user.id, accion="ACTUALIZACION", detalles={"antes": old_values_safe, "despues": update_data_safe})
     db.add(log_db)
+    
     db.commit()
     db.refresh(ticket)
     return ticket
