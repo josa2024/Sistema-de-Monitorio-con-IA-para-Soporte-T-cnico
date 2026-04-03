@@ -1,6 +1,5 @@
 import os
 import shutil
-import asyncio
 from datetime import datetime, timedelta, date
 from fastapi import UploadFile, HTTPException, status as http_status
 from sqlalchemy.orm import Session
@@ -36,7 +35,6 @@ class EquipmentService:
                 detail=f"Equipo con ID {equipment_id} no encontrado."
             )
 
-        # Validación del estado usando Enum para evitar comparación de cadenas inseguras
         if equipment.status != StatusEquipo.EN_TRANSITO:
             raise HTTPException(
                 status_code=http_status.HTTP_400_BAD_REQUEST,
@@ -63,7 +61,6 @@ class EquipmentService:
         # 1. Actualizamos el status del equipo
         equipment.status = StatusEquipo.INSTALADO
 
-
         # 2. Creamos el registro de Seguimiento de Instalación
         seguimiento = SeguimientoInstalacion(
             equipo_id=equipment.id,
@@ -76,7 +73,7 @@ class EquipmentService:
         )
         db.add(seguimiento)
 
-        # 3. Activamos la garantía por defecto (ej. 1 año de hardware)
+        # 3. Activamos la garantía por defecto
         fecha_actual = date.today()
         garantia = GarantiaLicencia(
             equipo_id=equipment.id,
@@ -101,23 +98,7 @@ class EquipmentService:
         db.commit()
         db.refresh(equipment)
 
-        # Eventos en tiempo real: recepción + garantía activada
-        try:
-            asyncio.create_task(manager.broadcast({
-                "evento": "EQUIPO_RECEPCIONADO",
-                "equipo_id": equipment.id,
-                "cliente_id": equipment.cliente_id,
-                "status": equipment.status.value if equipment.status else None,
-            }))
-            asyncio.create_task(manager.broadcast({
-                "evento": "GARANTIA_ACTIVADA",
-                "equipo_id": equipment.id,
-                "garantia_tipo": garantia.tipo.value if garantia.tipo else None,
-                "fecha_vencimiento": garantia.fecha_vencimiento.isoformat() if garantia.fecha_vencimiento else None,
-            }))
-        except Exception:
-            pass
-
+        # HEMOS ELIMINADO LOS WEBSOCKETS DE AQUÍ PARA QUE NO CORTEN EL EVENT LOOP
         return equipment
 
     def create_equipment(self, db: Session, equipment_data: EquipmentCreate) -> Equipo:
@@ -133,29 +114,15 @@ class EquipmentService:
         if "status" not in data or not data.get("status"):
             data["status"] = StatusEquipo.EN_TRANSITO
         else:
-            # Asegurarnos de que guarde el Enum correcto si se pasó un string
             data["status"] = StatusEquipo(data["status"])
 
-        # Compatibilidad antigua (si todavía se envía el campo 'estado')
         if "estado" in data:
             data.pop("estado")
 
         equipment_model = Equipo(**data)
         created = self.repo.create_equipment_from_model(db, equipment_model=equipment_model)
 
-        # Notificación en tiempo real de registro de equipamiento
-        try:
-            asyncio.create_task(manager.broadcast({
-                "evento": "EQUIPO_REGISTRADO",
-                "equipo_id": created.id,
-                "numero_serie": created.numero_serie,
-                "status": created.status.value if created.status else None,
-                "cliente_id": created.cliente_id,
-            }))
-        except Exception:
-            # no bloqueamos la creación por problemas de WebSocket
-            pass
-
+        # HEMOS ELIMINADO LOS WEBSOCKETS DE AQUÍ PARA QUE NO CORTEN EL EVENT LOOP
         return created
 
     def get_all_equipments(self, db: Session, skip: int = 0, limit: int = 100) -> list[Equipo]:
@@ -182,16 +149,12 @@ class EquipmentService:
                     detail=f"El número de serie '{update_data['numero_serie']}' ya está en uso por otro equipo."
                 )
                 
-        # Manejo especial si se intenta actualizar el status como string
         if "status" in update_data and isinstance(update_data["status"], str):
             update_data["status"] = StatusEquipo(update_data["status"])
 
         return self.repo.update(db, db_obj=equipment, obj_in=update_data)
 
     def get_equipment_history(self, db: Session, equipment_id: int) -> list:
-        """
-        Obtiene la bitácora de eventos (logs) de un equipo específico.
-        """
         equipment = self.repo.get_by_id(db, equipment_id)
         if not equipment:
             raise HTTPException(
@@ -201,14 +164,9 @@ class EquipmentService:
         return equipment.logs
 
     def get_warranty_alerts(self, db: Session, days_threshold: int = 30) -> list[Equipo]:
-        """
-        RF: Control de Garantías.
-        Identifica y retorna los equipos cuya garantía vencerá en los próximos 'days_threshold' días.
-        """
         now = date.today()
         max_expiration_date = now + timedelta(days=days_threshold)
 
-        # Hacemos un JOIN correcto con la tabla GarantiaLicencia
         return db.query(Equipo).join(Equipo.garantias).filter(
             GarantiaLicencia.is_active == True,
             GarantiaLicencia.fecha_vencimiento >= now,

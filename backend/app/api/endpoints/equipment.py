@@ -23,24 +23,25 @@ equipment_service = EquipmentService()
 async def create_equipment(
     equipment_in: EquipmentCreate, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user) # <-- EXIGIMOS SABER QUIÉN ES EL USUARIO
+    current_user: User = Depends(get_current_user)
 ):
-    # SEGURIDAD: Si es un cliente, ignoramos el ID que manda el frontend
-    # y forzamos a que el equipo se registre a SU nombre real.
     if current_user.role_id not in [1, 2] and not (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
         equipment_in.cliente_id = current_user.id
         
     created = equipment_service.create_equipment(db=db, equipment_data=equipment_in)
 
-    # Emitir evento WS al crear equipo
-    print(f"Broadcasting EQUIPO_REGISTRADO for equipment {created.id}")
-    await manager.broadcast({
-        "evento": "EQUIPO_REGISTRADO",
-        "equipo_id": created.id,
-        "numero_serie": created.numero_serie,
-        "status": created.status.value if created.status else None,
-        "cliente_id": created.cliente_id,
-    })
+    # AQUI SÍ FUNCIONA EL WEBSOCKET (Usando 'await' en una ruta 'async def')
+    try:
+        print(f"Broadcasting EQUIPO_REGISTRADO for equipment {created.id}")
+        await manager.broadcast({
+            "evento": "EQUIPO_REGISTRADO",
+            "equipo_id": created.id,
+            "numero_serie": created.numero_serie,
+            "status": created.status.value if created.status else None,
+            "cliente_id": created.cliente_id,
+        })
+    except Exception as e:
+        print(f"Error enviando WebSocket: {e}")
 
     return created
 
@@ -59,11 +60,9 @@ def list_equipments(
     limit: int = 100,
     current_user: User = Depends(get_current_user)
 ):
-    # Si es ADMIN o VENTAS (IDs 1 y 2), ve TODOS los equipos
     if current_user.role_id in [1, 2] or (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
         return equipment_service.get_all_equipments(db=db, skip=skip, limit=limit)
     
-    # Si es CLIENTE, SQLAlchemy SOLO devuelve los equipos donde él es el dueño
     equipos_del_cliente = db.query(Equipo).filter(Equipo.cliente_id == current_user.id).offset(skip).limit(limit).all()
     return equipos_del_cliente
 
@@ -92,23 +91,26 @@ async def register_equipment_reception(
         db=db, equipment_id=id, reception_data=reception_data, current_user=current_user, file=file
     )
 
-    print(f"Broadcasting EQUIPO_RECEPCIONADO for equipment {updated_equipment.id}")
-    await manager.broadcast({
-        "evento": "EQUIPO_RECEPCIONADO",
-        "equipo_id": updated_equipment.id,
-        "cliente_id": updated_equipment.cliente_id,
-        "status": updated_equipment.status.value if updated_equipment.status else None,
-    })
-
-    # Si la garantía fue creada (el servicio siempre la crea), notificar también
-    garantia = db.query(Equipo).get(updated_equipment.id).garantias[-1] if updated_equipment.garantias else None
-    if garantia:
-        print(f"Broadcasting GARANTIA_ACTIVADA for equipment {updated_equipment.id}")
+    # AQUI SÍ FUNCIONAN LOS WEBSOCKETS (Usando 'await' en una ruta 'async def')
+    try:
+        print(f"Broadcasting EQUIPO_RECEPCIONADO for equipment {updated_equipment.id}")
         await manager.broadcast({
-            "evento": "GARANTIA_ACTIVADA",
+            "evento": "EQUIPO_RECEPCIONADO",
             "equipo_id": updated_equipment.id,
-            "garantia_tipo": garantia.tipo.value if garantia.tipo else None,
-            "fecha_vencimiento": garantia.fecha_vencimiento.isoformat() if garantia.fecha_vencimiento else None,
+            "cliente_id": updated_equipment.cliente_id,
+            "status": updated_equipment.status.value if updated_equipment.status else None,
         })
+
+        garantia = db.query(Equipo).get(updated_equipment.id).garantias[-1] if updated_equipment.garantias else None
+        if garantia:
+            print(f"Broadcasting GARANTIA_ACTIVADA for equipment {updated_equipment.id}")
+            await manager.broadcast({
+                "evento": "GARANTIA_ACTIVADA",
+                "equipo_id": updated_equipment.id,
+                "garantia_tipo": garantia.tipo.value if garantia.tipo else None,
+                "fecha_vencimiento": garantia.fecha_vencimiento.isoformat() if garantia.fecha_vencimiento else None,
+            })
+    except Exception as e:
+        print(f"Error enviando WebSocket: {e}")
 
     return updated_equipment

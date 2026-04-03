@@ -115,6 +115,8 @@ services:
     restart: always
     ports:
       - "3000:3000"
+    environment:
+      - WDS_SOCKET_PORT=0  # <--- AQUÍ ESTÁ LA SOLUCIÓN AL ERROR ROJO
     volumes:
       # Montamos el código fuente, pero no los node_modules.
       # Estos últimos vivirán solo dentro del contenedor para evitar conflictos.
