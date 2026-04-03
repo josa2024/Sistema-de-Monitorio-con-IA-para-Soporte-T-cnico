@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Ticket, MessageSquare } from 'lucide-react';
+import { getAuthHeaders } from '../services/api';
 
 const ClienteTickets = () => {
   const [tickets, setTickets] = useState([]);
@@ -7,11 +8,12 @@ const ClienteTickets = () => {
   useEffect(() => {
     const fetchTickets = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const headers = getAuthHeaders();
         const resTk = await fetch('http://localhost:8000/api/v1/tickets/?t=' + Date.now(), { 
-          headers: { 'Authorization': `Bearer ${token}` } 
+          headers
         });
         if (resTk.ok) setTickets(await resTk.json());
+        else if (resTk.status === 401) console.error("Token inválido");
       } catch (error) {
         console.error("Error al cargar tickets:", error);
       }

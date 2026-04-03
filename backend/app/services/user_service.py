@@ -74,9 +74,20 @@ class UserService:
         Verifica las credenciales del usuario.
         Retorna el usuario si es válido, o None si falla.
         """
+        print(f"DEBUG authenticate: Buscando usuario con email={email}")
         user = self.get_by_email(db, email)
-        if not user or not verify_password(password, user.password_hash):
+        if not user:
+            print(f"DEBUG authenticate: Usuario no encontrado")
             return None
+        
+        print(f"DEBUG authenticate: Usuario encontrado, verificando contraseña")
+        print(f"DEBUG authenticate: user.password_hash={user.password_hash[:20] if user.password_hash else 'None'}...")
+        
+        if not verify_password(password, user.password_hash):
+            print(f"DEBUG authenticate: Contraseña incorrecta")
+            return None
+        
+        print(f"DEBUG authenticate: Autenticación exitosa para {email}")
         return user
 
     def register_client(self, db: Session, client_in: ClientRegister) -> User:

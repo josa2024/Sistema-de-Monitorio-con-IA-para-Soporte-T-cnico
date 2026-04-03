@@ -7,26 +7,44 @@
 const BASE_URL = 'http://localhost:8000/api/v1';
 
 /**
+ * Obtiene los headers autenticados correctamente. Garantiza que no envíe "Bearer null".
+ * @returns {object} Headers con Authorization si el token existe
+ */
+export const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    const headers = {
+        'Content-Type': 'application/json',
+    };
+    
+    if (token && token.trim()) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    return headers;
+};
+
+/**
  * Una función de fetch reutilizable que automáticamente incluye el token de autorización.
  * @param {string} endpoint El endpoint de la API al que llamar (ej. '/equipo/').
  * @param {object} options Opciones de fetch (method, body, etc.).
  * @returns {Promise<any>} La respuesta de la API.
  */
 export const apiClient = async (endpoint, options = {}) => {
-    const token = localStorage.getItem('token');
     const headers = {
-        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
         ...options.headers,
     };
-
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
 
     const response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
 
     if (!response.ok) {
-        // Un manejo de errores más robusto podría ir aquí.
+        if (response.status === 401) {
+            // Token inválido o expirado, limpiar localStorage
+            localStorage.removeItem('token');
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userName');
+            window.location.href = '/';
+        }
         throw new Error(`Error en la petición: ${response.statusText}`);
     }
 

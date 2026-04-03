@@ -26,23 +26,30 @@ def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
     """Valida el token JWT y recupera el usuario actual."""
+    print(f"DEBUG get_current_user: Token recibido: {token[:20] if token else 'NONE'}...")
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        print(f"DEBUG: Intentando decodificar token con SECRET_KEY={settings.SECRET_KEY[:10]}... y ALGORITHM={settings.ALGORITHM}")
         payload = jwt.decode(token, settings.SECRET_KEY,
                              algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
+        print(f"DEBUG: Token decodificado, email={email}")
         if email is None:
+            print("DEBUG: Email es None en el token")
             raise credentials_exception
-    except JWTError:
+    except JWTError as e:
+        print(f"DEBUG: Error al decodificar JWT: {str(e)}")
         raise credentials_exception
 
     user = db.query(User).filter(User.email == email).first()
     if user is None:
+        print(f"DEBUG: Usuario no encontrado para email={email}")
         raise credentials_exception
+    print(f"DEBUG: Usuario encontrado: {user.email}, activo={user.is_active}")
     return user
 
 

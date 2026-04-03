@@ -42,16 +42,20 @@ def login_access_token(
                 user.email, expires_delta=access_token_expires
             ),
             "token_type": "bearer",
-            "nombre": user.nombre, # <-- Añadimos el nombre para que el frontend lo muestre
-            "role": user.role.nombre if user.role else "CLIENTE" # <-- Añadimos el rol exacto de la base de datos
+            "nombre": user.nombre,
+            "role": user.role.nombre if user.role else "CLIENTE"
         }
         print(f"DEBUG: Token created successfully")
         return token_data
+    except HTTPException as e:
+        # Re-lanzar excepciones HTTP explícitas
+        raise e
     except Exception as e:
         print(f"DEBUG: Exception in login: {str(e)}")
         import traceback
         traceback.print_exc()
-        raise
+        # Retornar un error genérico en lugar de dejar que crash
+        raise HTTPException(status_code=400, detail="Invalid credentials or server error")
 
 @router.post("/register", response_model=UserResponse)
 def register_client(

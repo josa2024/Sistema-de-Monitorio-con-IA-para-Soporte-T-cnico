@@ -1,5 +1,6 @@
 import os
 import shutil
+import asyncio
 from datetime import datetime, timedelta, date
 from fastapi import UploadFile, HTTPException, status as http_status
 from sqlalchemy.orm import Session
@@ -100,6 +101,23 @@ class EquipmentService:
         db.commit()
         db.refresh(equipment)
 
+        # Eventos en tiempo real: recepción + garantía activada
+        try:
+            asyncio.create_task(manager.broadcast({
+                "evento": "EQUIPO_RECEPCIONADO",
+                "equipo_id": equipment.id,
+                "cliente_id": equipment.cliente_id,
+                "status": equipment.status.value if equipment.status else None,
+            }))
+            asyncio.create_task(manager.broadcast({
+                "evento": "GARANTIA_ACTIVADA",
+                "equipo_id": equipment.id,
+                "garantia_tipo": garantia.tipo.value if garantia.tipo else None,
+                "fecha_vencimiento": garantia.fecha_vencimiento.isoformat() if garantia.fecha_vencimiento else None,
+            }))
+        except Exception:
+            pass
+
         return equipment
 
     def create_equipment(self, db: Session, equipment_data: EquipmentCreate) -> Equipo:
@@ -123,7 +141,22 @@ class EquipmentService:
             data.pop("estado")
 
         equipment_model = Equipo(**data)
-        return self.repo.create_equipment_from_model(db, equipment_model=equipment_model)
+        created = self.repo.create_equipment_from_model(db, equipment_model=equipment_model)
+
+        # Notificación en tiempo real de registro de equipamiento
+        try:
+            asyncio.create_task(manager.broadcast({
+                "evento": "EQUIPO_REGISTRADO",
+                "equipo_id": created.id,
+                "numero_serie": created.numero_serie,
+                "status": created.status.value if created.status else None,
+                "cliente_id": created.cliente_id,
+            }))
+        except Exception:
+            # no bloqueamos la creación por problemas de WebSocket
+            pass
+
+        return created
 
     def get_all_equipments(self, db: Session, skip: int = 0, limit: int = 100) -> list[Equipo]:
         return self.repo.get_all(db, skip=skip, limit=limit)

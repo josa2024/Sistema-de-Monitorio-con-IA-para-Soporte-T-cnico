@@ -5,6 +5,7 @@ import datetime
 # Importaciones del proyecto
 from app.core.database import get_db
 from app.api.deps import get_current_user
+from app.core.websockets import manager
 from app.models.user_models import User
 from app.services.equipment_service import EquipmentService
 from app.schemas.equipment import (
@@ -19,7 +20,7 @@ router = APIRouter()
 equipment_service = EquipmentService()
 
 @router.post("/", response_model=EquipmentResponse, status_code=status.HTTP_201_CREATED)
-def create_equipment(
+async def create_equipment(
     equipment_in: EquipmentCreate, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user) # <-- EXIGIMOS SABER QUIÉN ES EL USUARIO
@@ -29,7 +30,19 @@ def create_equipment(
     if current_user.role_id not in [1, 2] and not (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
         equipment_in.cliente_id = current_user.id
         
-    return equipment_service.create_equipment(db=db, equipment_data=equipment_in)
+    created = equipment_service.create_equipment(db=db, equipment_data=equipment_in)
+
+    # Emitir evento WS al crear equipo
+    print(f"Broadcasting EQUIPO_REGISTRADO for equipment {created.id}")
+    await manager.broadcast({
+        "evento": "EQUIPO_REGISTRADO",
+        "equipo_id": created.id,
+        "numero_serie": created.numero_serie,
+        "status": created.status.value if created.status else None,
+        "cliente_id": created.cliente_id,
+    })
+
+    return created
 
 @router.put("/{id}", response_model=EquipmentResponse, dependencies=[Depends(get_current_user)])
 def update_equipment(id: int, equipment_in: EquipmentUpdate, db: Session = Depends(get_db)):
@@ -55,7 +68,7 @@ def list_equipments(
     return equipos_del_cliente
 
 @router.post("/{id}/reception", response_model=EquipmentResponse, status_code=status.HTTP_200_OK)
-def register_equipment_reception(
+async def register_equipment_reception(
     id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -75,6 +88,27 @@ def register_equipment_reception(
         observaciones=observaciones
     )
 
-    return equipment_service.process_equipment_reception(
+    updated_equipment = equipment_service.process_equipment_reception(
         db=db, equipment_id=id, reception_data=reception_data, current_user=current_user, file=file
     )
+
+    print(f"Broadcasting EQUIPO_RECEPCIONADO for equipment {updated_equipment.id}")
+    await manager.broadcast({
+        "evento": "EQUIPO_RECEPCIONADO",
+        "equipo_id": updated_equipment.id,
+        "cliente_id": updated_equipment.cliente_id,
+        "status": updated_equipment.status.value if updated_equipment.status else None,
+    })
+
+    # Si la garantía fue creada (el servicio siempre la crea), notificar también
+    garantia = db.query(Equipo).get(updated_equipment.id).garantias[-1] if updated_equipment.garantias else None
+    if garantia:
+        print(f"Broadcasting GARANTIA_ACTIVADA for equipment {updated_equipment.id}")
+        await manager.broadcast({
+            "evento": "GARANTIA_ACTIVADA",
+            "equipo_id": updated_equipment.id,
+            "garantia_tipo": garantia.tipo.value if garantia.tipo else None,
+            "fecha_vencimiento": garantia.fecha_vencimiento.isoformat() if garantia.fecha_vencimiento else None,
+        })
+
+    return updated_equipment

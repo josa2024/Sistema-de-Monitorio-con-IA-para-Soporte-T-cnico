@@ -21,6 +21,7 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         """Envía un mensaje JSON a todas las conexiones activas, manejando desconexiones abruptas."""
+        print(f"Broadcasting message: {message} to {len(self.active_connections)} connections")
         dead_connections = []
         
         for connection in self.active_connections:

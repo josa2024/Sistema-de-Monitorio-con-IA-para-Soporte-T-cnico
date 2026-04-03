@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, Server, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Bot, Video } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getAuthHeaders } from '../services/api';
+
 
 const Dashboard = () => {
   const [equipmentList, setEquipmentList] = useState([]);
@@ -39,8 +41,7 @@ const Dashboard = () => {
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
-    const token = localStorage.getItem('token') || '';
-    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const headers = getAuthHeaders();
 
     // 1. CARGAR EQUIPOS SEGURAMENTE
     try {
@@ -55,6 +56,7 @@ const Dashboard = () => {
     try {
       const licResponse = await fetch(`http://localhost:8000/api/v1/licencias/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
       if (licResponse.ok) setExpiringLicenses(await licResponse.json());
+      else if (licResponse.status === 401) console.error("Token inválido o expirado");
     } catch (error) { console.warn("Aviso: El endpoint de licencias devolvió error (CORS/404)."); }
 
     // 3. CARGAR TICKETS SEGURAMENTE
@@ -70,6 +72,7 @@ const Dashboard = () => {
         tktData.forEach(ticket => { const catName = ticket.categoria || 'General / Otro'; categoryCounts[catName] = (categoryCounts[catName] || 0) + 1; });
         setChartData(Object.keys(categoryCounts).map(name => ({ name, fallas: categoryCounts[name] })));
       }
+      else if (tktResponse.status === 401) console.error("Token inválido o expirado para tickets");
     } catch (error) { console.warn("Aviso: No se pudieron cargar los tickets."); }
     
     setIsLoading(false);
@@ -78,25 +81,74 @@ const Dashboard = () => {
   useEffect(() => {
     fetchData();
     // CORRECCIÓN: Agregamos el /ws/ a la URL y pasamos el token por parámetro para el Websocket
-    const token = localStorage.getItem('token') || '';
-    const socket = new WebSocket(`ws://localhost:8000/api/v1/ws/tickets?token=${token}`);
-    
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.evento === "NUEVO_TICKET") {
-        setLiveAlert(`¡ALERTA IA! Ticket TKT-${String(data.ticket_id).padStart(4, '0')}`);
-        setTimeout(() => setLiveAlert(null), 6000); fetchData();
+    const token = localStorage.getItem('token');
+    if (!token) return; // No conectar si no hay token
+
+    let socket;
+    let reconnectAttempts = 0;
+    let shouldReconnect = true;
+
+    const initWebSocket = () => {
+      if (!shouldReconnect) return;
+
+      socket = new WebSocket(`ws://localhost:8000/api/v1/ws/tickets?token=${token}`);
+
+      socket.onopen = () => {
+        console.log("WebSocket tickets conectado");
+        reconnectAttempts = 0;
+        socket.send("ping");
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log("WebSocket message received:", data);
+        if (data.evento === "NUEVO_TICKET") {
+          setLiveAlert(`¡ALERTA IA! Ticket TKT-${String(data.ticket_id).padStart(4, '0')}`);
+          setTimeout(() => setLiveAlert(null), 6000);
+          fetchData();
+        }
+        if (data.evento === "EQUIPO_REGISTRADO") {
+          setLiveAlert(`Producto registrado (S/N: ${data.numero_serie})`);
+          setTimeout(() => setLiveAlert(null), 6000);
+          fetchData();
+        }
+        if (data.evento === "EQUIPO_RECEPCIONADO") {
+          setLiveAlert(`Equipo recibido e instalado: ID ${data.equipo_id}`);
+          setTimeout(() => setLiveAlert(null), 6000);
+          fetchData();
+        }
+        if (data.evento === "GARANTIA_ACTIVADA") {
+          setLiveAlert(`Garantía activada para equipo ID ${data.equipo_id}`);
+          setTimeout(() => setLiveAlert(null), 6000);
+          fetchData();
+        }
+      };
+      socket.onclose = (event) => {
+        console.warn("WebSocket tickets cerrado:", event.code, event.reason);
+        if (!shouldReconnect) return;
+
+        const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts));
+        reconnectAttempts = Math.min(reconnectAttempts + 1, 10);
+        setTimeout(initWebSocket, delay);
+      };
+    };
+
+    initWebSocket();
+
+    return () => {
+      shouldReconnect = false;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close();
       }
     };
-    return () => socket.close();
   }, [fetchData]);
 
   const handleOpenTicket = async (ticket) => {
     setSelectedTicket(ticket);
     setScheduledDate('');
     try {
-      const token = localStorage.getItem('token') || '';
-      const res = await fetch(`http://localhost:8000/api/v1/tickets/${ticket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const headers = getAuthHeaders();
+      const res = await fetch(`http://localhost:8000/api/v1/tickets/${ticket.id}/comments`, { headers });
       if (res.ok) setComments(await res.json());
     } catch (e) { console.error(e); }
   };
@@ -106,11 +158,11 @@ const Dashboard = () => {
   const handleAssignTicket = async () => {
     setIsProcessing(true);
     try {
-      const token = localStorage.getItem('token') || '';
+      const headers = getAuthHeaders();
       await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/assign`, { 
         method: 'PATCH', 
         headers: { 
-          'Authorization': `Bearer ${token}`,
+          ...headers,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ tecnico_id: 1 })
@@ -127,13 +179,13 @@ const Dashboard = () => {
     }
 
     setIsProcessing(true);
-    const token = localStorage.getItem('token') || '';
+    const headers = getAuthHeaders();
 
     try {
       const response = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, {
         method: 'PATCH',
         headers: {
-          Authorization: `Bearer ${token}`,
+          ...headers,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ estado: 'RESUELTO' })

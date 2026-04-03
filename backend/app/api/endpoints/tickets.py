@@ -25,7 +25,7 @@ class TicketCasualCreate(BaseModel):
     categoria: str = "General"
 
 @router.post("/casual", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
-def create_casual_ticket(
+async def create_casual_ticket(
     *, db: Session = Depends(deps.get_db), ticket_in: TicketCasualCreate
 ) -> Any:
     try:
@@ -71,6 +71,16 @@ def create_casual_ticket(
         db.add(new_ticket)
         db.commit()
         db.refresh(new_ticket)
+
+        # Notificación en tiempo real via WebSocket
+        from app.core.websockets import manager
+        await manager.broadcast({
+            "evento": "NUEVO_TICKET",
+            "ticket_id": new_ticket.id,
+            "equipo_id": new_ticket.equipo_id,
+            "prioridad": new_ticket.prioridad,
+            "status": new_ticket.status,
+        })
         
         return new_ticket
     

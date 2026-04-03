@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Key, Plus, AlertTriangle, Download, X, Search, CalendarClock, Box } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getAuthHeaders } from '../services/api';
 
 const Licencias = () => {
   const [equipmentList, setEquipmentList] = useState([]);
@@ -14,13 +15,14 @@ const Licencias = () => {
   const [form, setForm] = useState({ tipo: 'SOFTWARE', nombre_software: '', licencia_key: '', fecha_inicio: '', fecha_vencimiento: '', file: null });
 
   const fetchData = async () => {
-    const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+    const headers = getAuthHeaders();
     try {
       const resEq = await fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), { headers });
       if (resEq.ok) setEquipmentList(await resEq.json());
 
       const resExp = await fetch('http://localhost:8000/api/v1/licencias/dashboard/expiring?days=30&t=' + Date.now(), { headers });
       if (resExp.ok) setExpiringLicenses(await resExp.json());
+      else if (resExp.status === 401) console.error("Token inválido para licencias expirando");
     } catch (e) { console.error(e); }
   };
 
@@ -29,7 +31,8 @@ const Licencias = () => {
   useEffect(() => {
     if (!selectedEquipment) return;
     const fetchLicenses = async () => {
-      const res = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      const headers = getAuthHeaders();
+      const res = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers });
       if (res.ok) setEquipmentLicenses(await res.json());
     };
     fetchLicenses();
@@ -53,10 +56,11 @@ const Licencias = () => {
       if (form.fecha_vencimiento) formData.append('fecha_vencimiento', form.fecha_vencimiento);
       if (form.file) formData.append('file', form.file);
 
-      const res = await fetch('http://localhost:8000/api/v1/licencias/', { method: 'POST', headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }, body: formData });
+      const headers = getAuthHeaders();
+      const res = await fetch('http://localhost:8000/api/v1/licencias/', { method: 'POST', headers, body: formData });
       if (res.ok) {
         setIsModalOpen(false); setForm({ tipo: 'SOFTWARE', nombre_software: '', licencia_key: '', fecha_inicio: '', fecha_vencimiento: '', file: null });
-        const resLic = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const resLic = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers });
         if (resLic.ok) setEquipmentLicenses(await resLic.json());
         fetchData();
       } else { alert("Error al registrar."); }
@@ -65,7 +69,8 @@ const Licencias = () => {
 
   const handleDownload = async (licenseId, nombre) => {
     try {
-        const response = await fetch(`http://localhost:8000/api/v1/licencias/descargar/${licenseId}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const headers = getAuthHeaders();
+        const response = await fetch(`http://localhost:8000/api/v1/licencias/descargar/${licenseId}`, { headers });
         if (!response.ok) throw new Error("No hay archivo");
         const blob = await response.blob();
         const a = document.createElement('a'); a.href = window.URL.createObjectURL(blob); a.download = `Doc_${nombre.replace(/\s+/g, '_')}.pdf`; document.body.appendChild(a); a.click(); a.remove();
