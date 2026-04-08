@@ -20,7 +20,12 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
   const [currentView, setCurrentView] = useState(localStorage.getItem('innotrevCurrentView') || 'home');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [equipmentList, setEquipmentList] = useState([]);
+  const [ticketsList, setTicketsList] = useState([]);
   const [selectedProductForChat, setSelectedProductForChat] = useState(null);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketComments, setTicketComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [isProcessingComment, setIsProcessingComment] = useState(false);
   
   // Estados del Chatbot
   const [chatMessages, setChatMessages] = useState([{ role: 'bot', text: 'Hola. Soy el agente de IA de Innotrev. Estoy aquí para resolver problemas con tus equipos Zebra, Honeywell o infraestructura RFID. ¿En qué te ayudo?' }]);
@@ -41,7 +46,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
 
   useEffect(() => {
     if (isAuthenticated) fetchData();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentView]); // Refrescar los datos al cambiar de vista
 
   useEffect(() => {
     localStorage.setItem('innotrevCurrentView', currentView);
@@ -52,6 +57,8 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
       const token = localStorage.getItem('token');
       const resEq = await fetch('http://localhost:8000/api/v1/equipo/?t=' + Date.now(), { headers: { 'Authorization': `Bearer ${token}` } });
       if (resEq.ok) setEquipmentList(await resEq.json());
+      const resTk = await fetch('http://localhost:8000/api/v1/tickets/?t=' + Date.now(), { headers: { 'Authorization': `Bearer ${token}` } });
+      if (resTk.ok) setTicketsList(await resTk.json());
     } catch (error) { console.error(error); }
   };
 
@@ -118,6 +125,46 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
     }
   };
 
+  const handleOpenTicket = async (ticket) => {
+    setSelectedTicket(ticket);
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/tickets/${ticket.id}/comments`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+      if (res.ok) setTicketComments(await res.json());
+    } catch (e) { console.error(e); }
+  };
+  
+  const handleCloseTicketModal = () => {
+    setSelectedTicket(null);
+    setTicketComments([]);
+    setNewComment('');
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !selectedTicket) return;
+    setIsProcessingComment(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ contenido: newComment })
+      });
+      if (response.ok) {
+        setNewComment('');
+        // Recargar los comentarios para mostrar el nuevo al instante
+        const res = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) setTicketComments(await res.json());
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsProcessingComment(false);
+    }
+  };
+
   // Clasificación de equipos del usuario
   const pedidos = equipmentList.filter(eq => ['SOLICITADO', 'PENDIENTE_PAGO', 'EN_TRANSITO'].includes(eq.status));
   const instalados = equipmentList.filter(eq => ['INSTALADO', 'FALLA_REPORTADA'].includes(eq.status));
@@ -144,7 +191,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
               <div className="flex items-center gap-2 sm:gap-4">
                 <div className="hidden md:flex">
                   <button onClick={() => setCurrentView('recepcion')} className={`text-xs uppercase tracking-widest font-black px-4 py-2.5 rounded-xl transition-all shadow-sm ${currentView === 'recepcion' ? 'bg-blue-600 text-white shadow-blue-900/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
-                    Mi Hardware {(pedidos.length > 0 || instalados.length > 0) && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full ml-1.5 shadow-sm">{pedidos.length + instalados.length}</span>}
+                    Mi Hardware {(pedidos.length > 0 || instalados.length > 0 || ticketsList.length > 0) && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full ml-1.5 shadow-sm">{pedidos.length + instalados.length + ticketsList.length}</span>}
                   </button>
                 </div>
                 <div className="flex items-center gap-3 bg-[#0a1229] px-3 py-1.5 rounded-full border border-white/10 ml-2 shadow-inner">
@@ -230,13 +277,13 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
               <p className="text-slate-500 mt-2 text-lg">Sigue el estado de tus compras y visualiza tu equipo instalado.</p>
             </div>
 
-            {pedidos.length === 0 && instalados.length === 0 ? (
+            {pedidos.length === 0 && instalados.length === 0 && ticketsList.length === 0 ? (
               <div className="bg-white p-16 rounded-[2rem] shadow-sm border border-slate-200 text-center flex flex-col items-center">
                  <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6">
                    <PackageOpen size={40} className="text-slate-400" />
                  </div>
                  <h3 className="text-2xl font-black text-slate-800 mb-2">Bandeja Vacía</h3>
-                 <p className="text-slate-500 text-lg max-w-md">Aún no tienes hardware registrado ni en proceso de envío.</p>
+                 <p className="text-slate-500 text-lg max-w-md">Aún no tienes hardware registrado, en proceso de envío, ni tickets de soporte.</p>
                  <button onClick={() => setCurrentView('tienda')} className="mt-8 bg-white border-2 border-slate-200 hover:border-blue-400 hover:text-blue-600 text-slate-600 font-bold px-6 py-3 rounded-xl transition-all">Ir al Catálogo</button>
               </div>
             ) : (
@@ -318,20 +365,73 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                            </div>
                            
                            {eq.status === 'FALLA_REPORTADA' ? (
-                             <div className="mt-auto bg-amber-50 text-amber-700 p-3 rounded-xl border border-amber-200 flex items-center gap-2 text-xs font-bold relative z-10">
-                               <AlertTriangle size={16} /> En revisión por Soporte
+                             <div className="mt-auto flex flex-col gap-2 relative z-10 mb-2">
+                               <div className="bg-amber-50 text-amber-700 p-3 rounded-xl border border-amber-200 flex items-center gap-2 text-xs font-bold">
+                                 <AlertTriangle size={16} /> En revisión por Soporte
+                               </div>
                              </div>
                            ) : (
-                             <div className="mt-auto bg-slate-50 text-slate-500 p-3 rounded-xl border border-slate-100 flex items-center gap-2 text-xs font-bold relative z-10 group-hover:bg-emerald-50 group-hover:text-emerald-700 group-hover:border-emerald-200 transition-colors">
+                             <div className="mt-auto bg-slate-50 text-slate-500 p-3 rounded-xl border border-slate-100 flex items-center gap-2 text-xs font-bold relative z-10 group-hover:bg-emerald-50 group-hover:text-emerald-700 group-hover:border-emerald-200 transition-colors mb-2">
                                <CheckCircle2 size={16} className="text-emerald-500" /> Operando correctamente
                              </div>
                            )}
+
+                           {/* Mostrar el botón del ticket siempre que el equipo tenga un ticket asociado */}
+                           {(() => {
+                             const eqTickets = ticketsList.filter(t => t.equipo_id === eq.id);
+                             if (eqTickets.length > 0) {
+                               const eqTicket = eqTickets.sort((a, b) => b.id - a.id)[0]; // Obtener el ticket más reciente
+                               return (
+                                 <button onClick={() => handleOpenTicket(eqTicket)} className={`w-full bg-white border font-bold py-2 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm relative z-10 ${eq.status === 'FALLA_REPORTADA' ? 'border-amber-200 hover:border-amber-400 text-amber-700' : 'border-blue-200 hover:border-blue-400 text-blue-700'}`}>
+                                   <MessageSquare size={14} /> Ver Ticket de Soporte
+                                 </button>
+                               );
+                             }
+                             return null;
+                           })()}
                          </motion.div>
                       ))}
                     </div>
                   </motion.div>
                 )}
 
+                {/* TICKETS DE SOPORTE */}
+                {ticketsList.length > 0 && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                    <h3 className="text-xl font-bold text-slate-800 mb-6 mt-8 flex items-center gap-2">
+                      <Ticket className="text-blue-600" /> Mis Tickets de Soporte
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {ticketsList.map((ticket, index) => {
+                        const eqAssociated = equipmentList.find(e => e.id === ticket.equipo_id);
+                        return (
+                         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }} key={ticket.id} className="bg-white border border-slate-200 hover:border-blue-200 p-6 rounded-3xl shadow-sm hover:shadow-lg transition-all flex flex-col relative overflow-hidden group">
+                           <div className="flex justify-between items-start mb-4">
+                             <span className={`text-[10px] font-black px-3 py-1.5 rounded-md uppercase tracking-widest inline-block shadow-sm ${ticket.status === 'ABIERTO' ? 'bg-amber-100 text-amber-700' : ticket.status === 'EN_PROGRESO' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                               {ticket.status.replace('_', ' ')}
+                             </span>
+                             <span className="text-xs font-bold text-slate-400">TKT-{String(ticket.id).padStart(4, '0')}</span>
+                           </div>
+                           
+                           <h3 className="font-black text-[#0b1437] text-lg mb-1 line-clamp-1">{ticket.titulo}</h3>
+                           {eqAssociated && (
+                             <p className="text-[11px] font-mono font-bold text-slate-500 mb-3 bg-slate-50 inline-block px-2 py-1 rounded border border-slate-100">
+                               Eq: {eqAssociated.modelo} (S/N: {eqAssociated.numero_serie})
+                             </p>
+                           )}
+                           <p className="text-sm text-slate-500 mb-6 line-clamp-2">{ticket.descripcion}</p>
+                           
+                           <div className="mt-auto flex flex-col gap-2">
+                             <button onClick={() => handleOpenTicket(ticket)} className="w-full bg-slate-50 hover:bg-blue-50 text-blue-600 border border-slate-200 hover:border-blue-200 font-bold py-2.5 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+                               <MessageSquare size={14} /> Ver Detalles y Mensajes
+                             </button>
+                           </div>
+                         </motion.div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
               </div>
             )}
           </motion.div>
@@ -553,6 +653,68 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                       </button>
                   </div>
                </form>
+             </motion.div>
+          </motion.div>
+        )}
+
+        {/* MODAL DE TICKET (SOPORTE) */}
+        {selectedTicket && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#050b1a]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[85vh]">
+               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/80 shrink-0">
+                 <div>
+                   <h2 className="font-black text-[#0b1437] text-xl flex items-center gap-2"><Ticket className="text-blue-600" size={22}/> Detalles de Soporte</h2>
+                   <p className="text-xs text-slate-500 mt-1">TKT-{String(selectedTicket.id).padStart(4, '0')} • Estado: {selectedTicket.status}</p>
+                 </div>
+                 <button onClick={handleCloseTicketModal} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-full border border-slate-100 shadow-sm transition-colors"><X size={18} /></button>
+               </div>
+               
+               <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50 custom-scrollbar space-y-6">
+                 <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><AlertTriangle size={14} className="text-amber-500" /> Reporte Original</h3>
+                   <p className="text-sm text-slate-700 font-medium whitespace-pre-wrap">{selectedTicket.descripcion}</p>
+                 </div>
+                 
+                 <div className="space-y-4">
+                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><MessageSquare size={14} className="text-blue-500" /> Respuestas y Seguimiento</h3>
+                   {ticketComments.length > 0 ? (
+                     ticketComments.map((comment, idx) => (
+                       <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+                         <div className="flex justify-between items-center mb-2">
+                           <span className="text-xs font-bold text-blue-700">{comment.autor?.nombre || comment.autor?.email || 'Soporte Técnico'}</span>
+                           <span className="text-[10px] font-bold text-slate-400">{new Date(comment.fecha_creacion).toLocaleString()}</span>
+                         </div>
+                         <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{comment.contenido}</p>
+                       </div>
+                     ))
+                   ) : (
+                     <div className="text-center py-6 text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                       <MessageSquare size={24} className="mx-auto mb-2 opacity-30" />
+                       <p className="text-sm font-medium">Aún no hay respuestas de soporte.</p>
+                     </div>
+                   )}
+                 </div>
+                 
+                 {/* Caja de nuevo comentario para el cliente */}
+                 <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm mt-4">
+                   <textarea
+                     value={newComment}
+                     onChange={(e) => setNewComment(e.target.value)}
+                     placeholder="Escribe una respuesta o actualización para soporte..."
+                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none"
+                     rows="2"
+                     ></textarea>
+                   <div className="flex justify-end mt-2">
+                     <button 
+                       onClick={handleAddComment} 
+                       disabled={!newComment.trim() || isProcessingComment} 
+                       className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-xs font-bold transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+                     >
+                       {isProcessingComment ? 'Enviando...' : 'Enviar Respuesta'}
+                     </button>
+                   </div>
+                 </div>
+               </div>
              </motion.div>
           </motion.div>
         )}

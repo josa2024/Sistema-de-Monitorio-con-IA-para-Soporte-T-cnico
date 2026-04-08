@@ -18,6 +18,7 @@ const Dashboard = () => {
   const [comments, setComments] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
+  const [newComment, setNewComment] = useState('');
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -153,7 +154,7 @@ const Dashboard = () => {
     } catch (e) { console.error(e); }
   };
 
-  const handleCloseModal = () => { setSelectedTicket(null); setComments([]); setScheduledDate(''); };
+  const handleCloseModal = () => { setSelectedTicket(null); setComments([]); setScheduledDate(''); setNewComment(''); };
 
   const handleAssignTicket = async () => {
     setIsProcessing(true);
@@ -260,6 +261,32 @@ const Dashboard = () => {
     } catch (error) {
       console.error('[Horario] fetch error:', error);
       alert('Error al agendar la videollamada. Revisa consola o servidor para más detalles.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !selectedTicket) return;
+    setIsProcessing(true);
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ contenido: newComment })
+      });
+      if (response.ok) {
+        setNewComment('');
+        const res = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { headers });
+        if (res.ok) setComments(await res.json());
+      }
+    } catch (error) {
+      console.error('[AddComment] fetch error:', error);
+      alert('Error al agregar el comentario. Revisa consola.');
     } finally {
       setIsProcessing(false);
     }
@@ -412,6 +439,26 @@ const Dashboard = () => {
                     ))}
                   </div>
                 )}
+
+                <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm mt-6">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><MessageSquare size={14} /> Nuevo Comentario / Actualización</h3>
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    placeholder="Escribe una actualización o nota para el cliente..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium text-[#0b1437] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none"
+                    rows="3"
+                  ></textarea>
+                  <div className="flex justify-end mt-3">
+                    <button
+                      onClick={handleAddComment}
+                      disabled={isProcessing || !newComment.trim()}
+                      className="bg-[#0b1437] hover:bg-blue-800 text-white px-6 py-2.5 rounded-xl text-sm font-black transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <MessageSquare size={16} /> Enviar Comentario
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="p-8 border-t border-slate-100 bg-white shrink-0">

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Ticket, MessageSquare, FileText } from 'lucide-react';
+import { Ticket, MessageSquare, FileText, X, AlertTriangle } from 'lucide-react';
 import { getAuthHeaders } from '../services/api';
 import { jsPDF } from 'jspdf';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const ClienteTickets = () => {
   const [tickets, setTickets] = useState([]);
+  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [ticketComments, setTicketComments] = useState([]);
 
   useEffect(() => {
     const fetchTickets = async () => {
@@ -21,6 +24,20 @@ const ClienteTickets = () => {
     };
     fetchTickets();
   }, []);
+
+  const handleOpenTicket = async (ticket) => {
+    setSelectedTicket(ticket);
+    try {
+      const headers = getAuthHeaders();
+      const res = await fetch(`http://localhost:8000/api/v1/tickets/${ticket.id}/comments`, { headers });
+      if (res.ok) setTicketComments(await res.json());
+    } catch (e) { console.error(e); }
+  };
+
+  const handleCloseModal = () => {
+    setSelectedTicket(null);
+    setTicketComments([]);
+  };
 
   const generarComprobanteTicket = (ticket) => {
     const doc = new jsPDF();
@@ -92,7 +109,10 @@ const ClienteTickets = () => {
                     {new Date(t.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button onClick={() => generarComprobanteTicket(t)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white p-2.5 rounded-xl transition-all shadow-sm inline-block" title="Descargar Comprobante">
+                    <button onClick={() => handleOpenTicket(t)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-xl transition-all shadow-sm inline-flex items-center gap-1 font-bold text-xs mr-2" title="Ver Detalles">
+                      <MessageSquare size={16} /> Detalles
+                    </button>
+                    <button onClick={() => generarComprobanteTicket(t)} className="text-slate-500 bg-slate-50 hover:bg-slate-600 hover:text-white p-2.5 rounded-xl transition-all shadow-sm inline-flex items-center" title="Descargar Comprobante">
                       <FileText size={16} />
                     </button>
                   </td>
@@ -108,6 +128,49 @@ const ClienteTickets = () => {
           <p className="text-sm">Las solicitudes de soporte aparecerán aquí una vez que interactúes con la IA.</p>
         </div>
       )}
+
+      <AnimatePresence>
+        {selectedTicket && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[85vh]">
+               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                 <div>
+                   <h2 className="font-bold text-slate-800 flex items-center gap-2"><Ticket className="text-blue-600" size={20}/> Detalles de Ticket</h2>
+                   <p className="text-xs text-slate-500 mt-1">Folio: TKT-{String(selectedTicket.id).padStart(4, '0')} • Estado: {selectedTicket.status}</p>
+                 </div>
+                 <button onClick={handleCloseModal} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-lg border border-slate-100 shadow-sm transition-colors"><X size={18} /></button>
+               </div>
+               
+               <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50 custom-scrollbar space-y-6">
+                 <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
+                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><AlertTriangle size={14} className="text-amber-500" /> Reporte Original</h3>
+                   <p className="text-sm text-slate-700 font-medium whitespace-pre-wrap">{selectedTicket.descripcion}</p>
+                 </div>
+                 
+                 <div className="space-y-4">
+                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><MessageSquare size={14} className="text-blue-500" /> Respuestas y Seguimiento</h3>
+                   {ticketComments.length > 0 ? (
+                     ticketComments.map((comment, idx) => (
+                       <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+                         <div className="flex justify-between items-center mb-2">
+                           <span className="text-xs font-bold text-blue-700">{comment.autor?.nombre || comment.autor?.email || 'Soporte Técnico'}</span>
+                           <span className="text-[10px] font-bold text-slate-400">{new Date(comment.fecha_creacion).toLocaleString()}</span>
+                         </div>
+                         <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{comment.contenido}</p>
+                       </div>
+                     ))
+                   ) : (
+                     <div className="text-center py-6 text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                       <MessageSquare size={24} className="mx-auto mb-2 opacity-30" />
+                       <p className="text-sm font-medium">Aún no hay comentarios en este ticket.</p>
+                     </div>
+                   )}
+                 </div>
+               </div>
+             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

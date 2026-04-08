@@ -13,10 +13,14 @@ const Inventario = () => {
   const [selectedEq, setSelectedEq] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const [form, setForm] = useState({ modelo: '', numero_serie: '', cliente_id: '' });
+  const [form, setForm] = useState({ modelo: '', numero_serie: '', marca: '', cliente_id: '' });
   const [valForm, setValForm] = useState({ numero_serie: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [newClient, setNewClient] = useState({ nombre: '', apellidos: '', direccion: '', telefono: '', email: '', password: '' });
+  const [isProcessingClient, setIsProcessingClient] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -54,6 +58,37 @@ const Inventario = () => {
       });
       if (res.ok) { setIsModalOpen(false); fetchData(); } else { alert("Error al registrar envío. Verifica S/N."); }
     } catch (error) { console.error(error); } finally { setIsProcessing(false); }
+  };
+
+  const handleCreateClient = async () => {
+    if (!newClient.nombre || !newClient.email || !newClient.password) {
+      alert("Por favor llena al menos el nombre, correo y contraseña.");
+      return;
+    }
+    setIsProcessingClient(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/v1/auth/register', {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newClient)
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Error al crear cliente');
+      
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+      const resCl = await fetch('http://localhost:8000/api/v1/usuarios/?t=' + Date.now(), { headers });
+      if (resCl.ok) {
+        const updatedClients = await resCl.json();
+        setClientsList(updatedClients);
+        const createdUser = updatedClients.find(c => c.email === newClient.email);
+        if (createdUser) {
+          setForm({...form, cliente_id: createdUser.id});
+          setSearchTerm(`${createdUser.nombre}`);
+        }
+      }
+      setIsCreatingClient(false);
+      setNewClient({ nombre: '', apellidos: '', direccion: '', telefono: '', email: '', password: '' });
+    } catch (error) { alert(error.message); } finally { setIsProcessingClient(false); }
   };
 
   // Validar Venta de E-commerce
@@ -105,7 +140,7 @@ const Inventario = () => {
     <div className="p-8 max-w-[1600px] mx-auto space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div><h1 className="text-3xl font-black text-[#0b1437]">Ventas y Envíos</h1><p className="text-slate-500 mt-2 font-medium">Valida solicitudes de compra, despacha hardware y genera PDF.</p></div>
-        <button onClick={() => {setForm({ modelo: '', numero_serie: 'INN-' + Math.random().toString(36).substr(2, 7).toUpperCase(), cliente_id: '' }); setIsModalOpen(true);}} className="bg-[#0b1437] hover:bg-blue-800 text-white px-6 py-3.5 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all hover:scale-105">
+        <button onClick={() => {setForm({ modelo: '', numero_serie: 'INN-' + Math.random().toString(36).substr(2, 7).toUpperCase(), marca: '', cliente_id: '' }); setIsModalOpen(true);}} className="bg-[#0b1437] hover:bg-blue-800 text-white px-6 py-3.5 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all hover:scale-105">
           <Plus size={20} /> Envío Manual
         </button>
       </div>
@@ -155,24 +190,56 @@ const Inventario = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Número de Serie (S/N)</label>
-                    <input required type="text" className="w-full border border-slate-200 p-4 rounded-2xl text-sm font-mono font-black text-blue-600 outline-none focus:ring-4 focus:ring-blue-500/10 bg-slate-50 uppercase" value={form.numero_serie} onChange={e => setForm({...form, numero_serie: e.target.value})} />
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Marca</label>
+                    <select required className="w-full border border-slate-200 p-4 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-blue-500/10 bg-slate-50 font-bold text-[#0b1437]" value={form.marca} onChange={e => setForm({...form, marca: e.target.value})}>
+                      <option value="">Selecciona una marca...</option>
+                      <option value="Zebra">Zebra</option>
+                      <option value="Ribetec">Ribetec</option>
+                      <option value="Evolis">Evolis</option>
+                      <option value="HoneyWell">HoneyWell</option>
+                      <option value="Sato">Sato</option>
+                    </select>
                   </div>
-                  <div className="relative">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Cliente Asignado</label>
-                    <Search className="absolute left-4 top-[38px] text-slate-400" size={18} />
-                    <input type="text" placeholder="Buscar..." className="w-full border border-slate-200 pl-11 pr-4 py-4 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-blue-500/10 bg-slate-50 font-bold text-[#0b1437]" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setIsDropdownOpen(true); setForm({...form, cliente_id: ''}); }} onFocus={() => setIsDropdownOpen(true)} />
-                    {isDropdownOpen && (
-                      <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-56 overflow-y-auto">
-                        {filteredClients.map(c => (
-                            <div key={c.id} className="px-6 py-4 hover:bg-blue-50 cursor-pointer border-b border-slate-50" onClick={() => { setForm({...form, cliente_id: c.id}); setSearchTerm(`${c.nombre}`); setIsDropdownOpen(false); }}>
-                              <p className="text-sm font-black text-[#0b1437]">{c.nombre}</p>
-                            </div>
-                        ))}
+                  
+                  <div className="pt-2 border-t border-slate-100">
+                    <div className="flex p-1 bg-slate-100 rounded-xl mb-4 relative">
+                      <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm transition-transform duration-300 ease-out ${isCreatingClient ? 'translate-x-full' : 'translate-x-0'}`}></div>
+                      <button type="button" onClick={() => setIsCreatingClient(false)} className={`flex-1 py-2 text-xs font-black uppercase tracking-widest z-10 transition-colors ${!isCreatingClient ? 'text-blue-700' : 'text-slate-400'}`}>Buscar Cliente</button>
+                      <button type="button" onClick={() => setIsCreatingClient(true)} className={`flex-1 py-2 text-xs font-black uppercase tracking-widest z-10 transition-colors ${isCreatingClient ? 'text-blue-700' : 'text-slate-400'}`}>Nuevo Cliente</button>
+                    </div>
+
+                    {!isCreatingClient ? (
+                      <div className="relative">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Cliente Asignado</label>
+                        <Search className="absolute left-4 top-[38px] text-slate-400" size={18} />
+                        <input type="text" placeholder="Buscar..." className="w-full border border-slate-200 pl-11 pr-4 py-4 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-blue-500/10 bg-slate-50 font-bold text-[#0b1437]" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setIsDropdownOpen(true); setForm({...form, cliente_id: ''}); }} onFocus={() => setIsDropdownOpen(true)} />
+                        {isDropdownOpen && (
+                          <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-56 overflow-y-auto">
+                            {filteredClients.map(c => (
+                                <div key={c.id} className="px-6 py-4 hover:bg-blue-50 cursor-pointer border-b border-slate-50" onClick={() => { setForm({...form, cliente_id: c.id}); setSearchTerm(`${c.nombre}`); setIsDropdownOpen(false); }}>
+                                  <p className="text-sm font-black text-[#0b1437]">{c.nombre}</p>
+                                </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-3 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+                        <div className="grid grid-cols-2 gap-3">
+                          <input type="text" placeholder="Nombre" value={newClient.nombre} onChange={e => setNewClient({...newClient, nombre: e.target.value})} className="w-full border border-slate-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 bg-white" />
+                          <input type="text" placeholder="Apellidos" value={newClient.apellidos} onChange={e => setNewClient({...newClient, apellidos: e.target.value})} className="w-full border border-slate-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 bg-white" />
+                        </div>
+                        <input type="text" placeholder="Dirección de envío" value={newClient.direccion} onChange={e => setNewClient({...newClient, direccion: e.target.value})} className="w-full border border-slate-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 bg-white" />
+                        <input type="text" placeholder="Teléfono" value={newClient.telefono} onChange={e => setNewClient({...newClient, telefono: e.target.value})} className="w-full border border-slate-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 bg-white" />
+                        <input type="email" placeholder="Correo electrónico" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} className="w-full border border-slate-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 bg-white" />
+                        <input type="password" placeholder="Contraseña de acceso" value={newClient.password} onChange={e => setNewClient({...newClient, password: e.target.value})} className="w-full border border-slate-200 p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/20 bg-white" />
+                        <button type="button" onClick={handleCreateClient} disabled={isProcessingClient} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-sm font-bold mt-2 shadow-md disabled:opacity-50 transition-all">{isProcessingClient ? 'Creando...' : 'Guardar y Asignar Cliente'}</button>
                       </div>
                     )}
                   </div>
-                  <button type="submit" disabled={isProcessing} className="w-full bg-[#0b1437] hover:bg-blue-800 text-white py-4 rounded-2xl text-sm font-black mt-6">Despachar Producto</button>
+                  {!isCreatingClient && (
+                    <button type="submit" disabled={isProcessing} className="w-full bg-[#0b1437] hover:bg-blue-800 text-white py-4 rounded-2xl text-sm font-black mt-6 transition-all shadow-lg shadow-blue-900/20 hover:shadow-blue-900/30">Despachar Producto</button>
+                  )}
                </form>
              </motion.div>
           </motion.div>
