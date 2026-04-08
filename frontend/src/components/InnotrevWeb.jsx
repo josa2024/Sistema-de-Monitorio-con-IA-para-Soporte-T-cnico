@@ -143,7 +143,6 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
             {isAuthenticated ? (
               <div className="flex items-center gap-2 sm:gap-4">
                 <div className="hidden md:flex">
-                  {/* SE RESTAURÓ EL BOTÓN DE MIS PEDIDOS */}
                   <button onClick={() => setCurrentView('recepcion')} className={`text-xs uppercase tracking-widest font-black px-4 py-2.5 rounded-xl transition-all shadow-sm ${currentView === 'recepcion' ? 'bg-blue-600 text-white shadow-blue-900/50' : 'bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'}`}>
                     Mi Hardware {(pedidos.length > 0 || instalados.length > 0) && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full ml-1.5 shadow-sm">{pedidos.length + instalados.length}</span>}
                   </button>
@@ -223,7 +222,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
           </motion.div>
         )}
 
-        {/* SE RESTAURÓ LA VISTA: MIS PEDIDOS Y EQUIPOS INSTALADOS */}
+        {/* VISTA: MIS PEDIDOS Y EQUIPOS INSTALADOS */}
         {isAuthenticated && currentView === 'recepcion' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 md:p-12 max-w-5xl mx-auto w-full">
             <div className="mb-10">
@@ -378,6 +377,74 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
           </motion.div>
         )}
       </main>
+
+      {/* FOOTER CORPORATIVO COMPLETO E INTEGRADO */}
+      <footer className="bg-[#050b1a] text-slate-400 py-12 border-t border-white/10 shrink-0 z-40 relative">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+            
+            {/* Columna 1: Marca y Experiencia */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded flex items-center justify-center font-black text-xs text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]">IN</div>
+                <span className="font-black text-xl tracking-widest text-white">INNOTREV</span>
+              </div>
+              <p className="text-sm text-slate-500 leading-relaxed pr-4">
+                Tenemos 13 años de experiencia en el sector tecnológico de identificación y etiquetado.
+              </p>
+            </div>
+
+            {/* Columna 2: Productos */}
+            <div>
+              <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Productos</h4>
+              <ul className="space-y-2 text-sm text-slate-500">
+                <li className="hover:text-blue-400 cursor-pointer transition-colors flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span> Impresoras de credenciales</li>
+                <li className="hover:text-blue-400 cursor-pointer transition-colors flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span> Impresoras de etiquetas</li>
+                <li className="hover:text-blue-400 cursor-pointer transition-colors flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span> Impresoras portátiles</li>
+                <li className="hover:text-blue-400 cursor-pointer transition-colors flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span> Lectores de códigos de barras</li>
+                <li className="hover:text-blue-400 cursor-pointer transition-colors flex items-center gap-2"><span className="w-1 h-1 bg-blue-500 rounded-full"></span> Computadoras móviles</li>
+              </ul>
+            </div>
+
+            {/* Columna 3: Enlaces */}
+            <div>
+              <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Enlaces</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm text-slate-500">
+                <span className="hover:text-blue-400 cursor-pointer transition-colors">Nosotros</span>
+                <span className="hover:text-blue-400 cursor-pointer transition-colors">Servicio técnico</span>
+                <span className="hover:text-blue-400 cursor-pointer transition-colors">Productos</span>
+                <span className="hover:text-blue-400 cursor-pointer transition-colors">Soporte</span>
+                <span className="hover:text-blue-400 cursor-pointer transition-colors">Soluciones</span>
+                <span className="hover:text-blue-400 cursor-pointer transition-colors">Noticias</span>
+                <span className="hover:text-blue-400 cursor-pointer transition-colors">Marcas</span>
+                <span className="hover:text-blue-400 cursor-pointer transition-colors">Contáctanos</span>
+              </div>
+            </div>
+
+            {/* Columna 4: Contacto */}
+            <div>
+              <h4 className="text-white font-bold mb-4 uppercase tracking-wider text-sm">Contacto</h4>
+              <ul className="space-y-2 text-sm text-slate-500 mb-6">
+                <li><span className="text-slate-400 font-semibold">Email:</span> contacto@innotrev.com</li>
+                <li><span className="text-slate-400 font-semibold">GDL:</span> 33 2960 8136</li>
+                <li><span className="text-slate-400 font-semibold">CDMX:</span> 55 7337 5192</li>
+                <li><span className="text-slate-400 font-semibold">MTY:</span> 33 1452 4414</li>
+              </ul>
+              <div className="text-xs font-bold text-slate-300 bg-white/5 p-3 rounded-xl border border-white/10 inline-block shadow-inner">
+                💳 Aceptamos pago con tarjetas TDD y TDC
+              </div>
+            </div>
+          </div>
+
+          {/* Fila Inferior: Copyright */}
+          <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+            <span className="font-medium text-sm text-slate-500">© {new Date().getFullYear()} INNOTREV. Todos los derechos reservados.</span>
+            <div className="text-sm font-medium">
+              Visítanos en: <a href="https://www.innotrev.com" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 transition-colors">www.innotrev.com</a>
+            </div>
+          </div>
+        </div>
+      </footer>
 
       {/* SE RESTAURARON LAS MODALES DE ACCIÓN */}
       <AnimatePresence>

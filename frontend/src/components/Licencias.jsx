@@ -48,22 +48,29 @@ const Licencias = () => {
     setIsProcessing(true);
     try {
       const formData = new FormData();
-      formData.append('equipment_id', selectedEquipment.id);
-      formData.append('tipo_licencia', form.tipo);
+      formData.append('equipo_id', selectedEquipment.id);
+      formData.append('tipo', form.tipo);
       formData.append('nombre_software', form.nombre_software);
-      if (form.licencia_key) formData.append('clave_producto', form.licencia_key);
+      if (form.licencia_key) formData.append('licencia_key', form.licencia_key);
       formData.append('fecha_inicio', form.fecha_inicio);
-      if (form.fecha_vencimiento) formData.append('fecha_vencimiento', form.fecha_vencimiento);
+      formData.append('fecha_vencimiento', form.fecha_vencimiento); // Enviarlo siempre, es requerido
       if (form.file) formData.append('file', form.file);
 
-      const headers = getAuthHeaders();
-      const res = await fetch('http://localhost:8000/api/v1/licencias/', { method: 'POST', headers, body: formData });
+      // Creamos los headers manualmente sin Content-Type para asegurar que el navegador genere el "boundary" multipart
+      const token = localStorage.getItem('token');
+      const fetchHeaders = { 'Authorization': `Bearer ${token}` };
+      
+      const res = await fetch('http://localhost:8000/api/v1/licencias/', { method: 'POST', headers: fetchHeaders, body: formData });
       if (res.ok) {
         setIsModalOpen(false); setForm({ tipo: 'SOFTWARE', nombre_software: '', licencia_key: '', fecha_inicio: '', fecha_vencimiento: '', file: null });
-        const resLic = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers });
+        const resLic = await fetch(`http://localhost:8000/api/v1/licencias/equipo/${selectedEquipment.id}`, { headers: getAuthHeaders() });
         if (resLic.ok) setEquipmentLicenses(await resLic.json());
         fetchData();
-      } else { alert("Error al registrar."); }
+      } else { 
+        const errorData = await res.json().catch(() => null);
+        console.error("Detalle del Error 422:", errorData);
+        alert(`Error al registrar: ${errorData ? JSON.stringify(errorData.detail) : 'Revisa la consola'}`); 
+      }
     } catch (error) { console.error(error); } finally { setIsProcessing(false); }
   };
 
@@ -194,9 +201,9 @@ const Licencias = () => {
               </div>
               <form onSubmit={handleCreateLicense} className="p-8 space-y-5">
                 <div className="flex p-1 bg-slate-100 rounded-xl relative mb-2">
-                  <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm transition-transform duration-300 ease-out ${form.tipo === 'GARANTIA' ? 'translate-x-full' : 'translate-x-0'}`}></div>
+                  <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-lg shadow-sm transition-transform duration-300 ease-out ${form.tipo === 'GARANTIA_HW' ? 'translate-x-full' : 'translate-x-0'}`}></div>
                   <button type="button" onClick={() => setForm({...form, tipo: 'SOFTWARE'})} className={`flex-1 py-3 text-xs uppercase tracking-widest font-black z-10 transition-colors ${form.tipo === 'SOFTWARE' ? 'text-blue-700' : 'text-slate-400'}`}>Software</button>
-                  <button type="button" onClick={() => setForm({...form, tipo: 'GARANTIA'})} className={`flex-1 py-3 text-xs uppercase tracking-widest font-black z-10 transition-colors ${form.tipo === 'GARANTIA' ? 'text-blue-700' : 'text-slate-400'}`}>Física</button>
+                  <button type="button" onClick={() => setForm({...form, tipo: 'GARANTIA_HW'})} className={`flex-1 py-3 text-xs uppercase tracking-widest font-black z-10 transition-colors ${form.tipo === 'GARANTIA_HW' ? 'text-blue-700' : 'text-slate-400'}`}>Física</button>
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Descripción</label>
