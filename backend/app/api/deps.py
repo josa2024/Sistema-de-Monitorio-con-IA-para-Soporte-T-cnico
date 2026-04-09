@@ -26,30 +26,22 @@ def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
     """Valida el token JWT y recupera el usuario actual."""
-    print(f"DEBUG get_current_user: Token recibido: {token[:20] if token else 'NONE'}...")
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        print(f"DEBUG: Intentando decodificar token con SECRET_KEY={settings.SECRET_KEY[:10]}... y ALGORITHM={settings.ALGORITHM}")
-        payload = jwt.decode(token, settings.SECRET_KEY,
-                             algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
-        print(f"DEBUG: Token decodificado, email={email}")
         if email is None:
-            print("DEBUG: Email es None en el token")
             raise credentials_exception
-    except JWTError as e:
-        print(f"DEBUG: Error al decodificar JWT: {str(e)}")
+    except JWTError:
         raise credentials_exception
 
     user = db.query(User).filter(User.email == email).first()
     if user is None:
-        print(f"DEBUG: Usuario no encontrado para email={email}")
         raise credentials_exception
-    print(f"DEBUG: Usuario encontrado: {user.email}, activo={user.is_active}")
     return user
 
 
@@ -68,48 +60,49 @@ class RoleChecker:
         self.allowed_roles = allowed_roles
 
     def __call__(self, user: User = Depends(get_current_active_user)):
-        if user.role.nombre not in self.allowed_roles:
+        # Verificación segura por si el usuario no tiene la relación 'role' cargada
+        if not getattr(user, 'role', None) or user.role.nombre not in self.allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="The user does not have enough privileges"
+                detail=f"Operación denegada. Se requiere uno de los siguientes roles: {[r.value for r in self.allowed_roles]}"
             )
         return user
 
-# Dependencias específicas para roles para mayor legibilidad en los endpoints
+
+# ==========================================
+# DEPENDENCIAS DE ROLES (BASADO EN REGLAS DE NEGOCIO)
+# ==========================================
+
+# 1. Acceso Global Absoluto
 require_admin = RoleChecker([RoleEnum.ADMIN])
-require_tecnico = RoleChecker([RoleEnum.TECNICO])
-require_cliente = RoleChecker([RoleEnum.CLIENTE])
+
+# 2. Acceso para Creación Comercial (Alta de Clientes y Venta de Equipos)
+require_admin_or_ventas = RoleChecker([RoleEnum.ADMIN, RoleEnum.VENTAS])
+
+# 3. Acceso de Soporte y Diagnóstico (Actualización de Tickets y Gestión de Licencias)
 require_admin_or_tecnico = RoleChecker([RoleEnum.ADMIN, RoleEnum.TECNICO])
 
+# 4. Acceso de Visualización Interna (Leer Inventario y Ver Cola de Tickets)
+require_internal_staff = RoleChecker([RoleEnum.ADMIN, RoleEnum.TECNICO, RoleEnum.VENTAS])
+
+# 5. Acceso exclusivo para Clientes
+require_cliente = RoleChecker([RoleEnum.CLIENTE])
 
 
-# Funciones de dependencia "legacy" - se pueden ir reemplazando por el RoleChecker
-def get_current_admin_user(
-    current_user: User = Depends(get_current_active_user),
-) -> User:
-    """Verifica que el usuario tenga rol de ADMIN."""
-    if not current_user.role or current_user.role.nombre != RoleEnum.ADMIN:
-        raise HTTPException(
-            status_code=403, detail="The user does not have enough privileges"
-        )
+# ==========================================
+# FUNCIONES LEGACY (Mantenidas por compatibilidad temporal)
+# ==========================================
+def get_current_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
+    if not getattr(current_user, 'role', None) or current_user.role.nombre != RoleEnum.ADMIN:
+        raise HTTPException(status_code=403, detail="The user does not have enough privileges")
     return current_user
 
-def get_current_technician_user(
-    current_user: User = Depends(get_current_active_user),
-) -> User:
-    """Verifica que el usuario tenga rol de TECNICO."""
-    if not current_user.role or current_user.role.nombre != RoleEnum.TECNICO:
-        raise HTTPException(
-            status_code=403, detail="The user does not have enough privileges"
-        )
+def get_current_technician_user(current_user: User = Depends(get_current_active_user)) -> User:
+    if not getattr(current_user, 'role', None) or current_user.role.nombre != RoleEnum.TECNICO:
+        raise HTTPException(status_code=403, detail="The user does not have enough privileges")
     return current_user
 
-def get_current_admin_or_technician_user(
-    current_user: User = Depends(get_current_active_user),
-) -> User:
-    """Verifica que el usuario tenga rol de ADMIN o TECNICO."""
-    if not current_user.role or current_user.role.nombre not in [RoleEnum.ADMIN, RoleEnum.TECNICO]:
-        raise HTTPException(
-            status_code=403, detail="The user does not have enough privileges"
-        )
+def get_current_admin_or_technician_user(current_user: User = Depends(get_current_active_user)) -> User:
+    if not getattr(current_user, 'role', None) or current_user.role.nombre not in [RoleEnum.ADMIN, RoleEnum.TECNICO]:
+        raise HTTPException(status_code=403, detail="The user does not have enough privileges")
     return current_user

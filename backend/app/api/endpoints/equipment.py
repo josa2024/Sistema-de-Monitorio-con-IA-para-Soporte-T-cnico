@@ -4,7 +4,9 @@ import datetime
 
 # Importaciones del proyecto
 from app.core.database import get_db
-from app.api.deps import get_current_user
+# Importamos RoleEnum y las llaves de seguridad
+from app.models.roles import RoleEnum
+from app.api.deps import get_current_user, get_current_active_user, require_admin
 from app.core.websockets import manager
 from app.models.user_models import User
 from app.services.equipment_service import EquipmentService
@@ -23,14 +25,18 @@ equipment_service = EquipmentService()
 async def create_equipment(
     equipment_in: EquipmentCreate, 
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
-    if current_user.role_id not in [1, 2] and not (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
+    # Validaciones de Seguridad
+    if current_user.role.nombre == RoleEnum.TECNICO:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Soporte Técnico no puede registrar equipos en el inventario.")
+
+    # Si es cliente, solo puede pedir equipos para sí mismo
+    if current_user.role.nombre == RoleEnum.CLIENTE:
         equipment_in.cliente_id = current_user.id
         
     created = equipment_service.create_equipment(db=db, equipment_data=equipment_in)
 
-    # AQUI SÍ FUNCIONA EL WEBSOCKET (Usando 'await' en una ruta 'async def')
     try:
         print(f"Broadcasting EQUIPO_REGISTRADO for equipment {created.id}")
         await manager.broadcast({
@@ -45,31 +51,38 @@ async def create_equipment(
 
     return created
 
-@router.put("/{id}", response_model=EquipmentResponse, dependencies=[Depends(get_current_user)])
+# CAMBIO AQUÍ: Solo el Administrador puede editar libremente un equipo
+@router.put("/{id}", response_model=EquipmentResponse, dependencies=[Depends(require_admin)])
 def update_equipment(id: int, equipment_in: EquipmentUpdate, db: Session = Depends(get_db)):
     return equipment_service.update_equipment(db=db, equipment_id=id, equipment_update=equipment_in)
 
-@router.get("/{id}", response_model=EquipmentResponse, dependencies=[Depends(get_current_user)])
-def get_equipment(id: int, db: Session = Depends(get_db)):
-    return equipment_service.get_equipment_by_id(db=db, equipment_id=id)
+@router.get("/{id}", response_model=EquipmentResponse)
+def get_equipment(id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+    equipment = equipment_service.get_equipment_by_id(db=db, equipment_id=id)
+    # Seguridad: Un cliente solo puede ver sus propios equipos
+    if current_user.role.nombre == RoleEnum.CLIENTE and equipment.cliente_id != current_user.id:
+         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a este equipo.")
+    return equipment
 
 @router.get("/", response_model=list[EquipmentResponse])
 def list_equipments(
     db: Session = Depends(get_db), 
     skip: int = 0, 
     limit: int = 100,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_active_user)
 ):
-    if current_user.role_id in [1, 2] or (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
+    # Admin, Ventas y Técnico pueden ver todos los equipos
+    if current_user.role.nombre in [RoleEnum.ADMIN, RoleEnum.VENTAS, RoleEnum.TECNICO]:
         return equipment_service.get_all_equipments(db=db, skip=skip, limit=limit)
     
+    # El cliente solo ve sus propios equipos
     equipos_del_cliente = db.query(Equipo).filter(Equipo.cliente_id == current_user.id).offset(skip).limit(limit).all()
     return equipos_del_cliente
 
 @router.post("/{id}/reception", response_model=EquipmentResponse, status_code=status.HTTP_200_OK)
 async def register_equipment_reception(
     id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
     observaciones: str | None = Form(None),
     fecha_recepcion: datetime.datetime = Form(...),
@@ -91,7 +104,6 @@ async def register_equipment_reception(
         db=db, equipment_id=id, reception_data=reception_data, current_user=current_user, file=file
     )
 
-    # AQUI SÍ FUNCIONAN LOS WEBSOCKETS (Usando 'await' en una ruta 'async def')
     try:
         print(f"Broadcasting EQUIPO_RECEPCIONADO for equipment {updated_equipment.id}")
         await manager.broadcast({

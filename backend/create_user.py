@@ -16,7 +16,8 @@ async def create_user():
     db = SessionLocal()
     try:
         # --- 1. CREAR ROLES SI NO EXISTEN ---
-        roles_necesarios = ["ADMIN", "VENTAS", "CLIENTE"]
+        # ¡NUEVO!: Se agregó el rol TECNICO a la lista
+        roles_necesarios = ["ADMIN", "VENTAS", "CLIENTE", "TECNICO"]
         
         for role_name in roles_necesarios:
             role = db.query(Role).filter(Role.nombre == role_name).first()
@@ -29,14 +30,15 @@ async def create_user():
         admin_role = db.query(Role).filter(Role.nombre == "ADMIN").first()
         ventas_role = db.query(Role).filter(Role.nombre == "VENTAS").first()
         cliente_role = db.query(Role).filter(Role.nombre == "CLIENTE").first()
+        tecnico_role = db.query(Role).filter(Role.nombre == "TECNICO").first()
 
         # --- 2. CREAR USUARIOS ---
         
-        # Usuario Administrador / Técnico
+        # Usuario Administrador
         admin_user = db.query(User).filter(User.email == "admin@innotrev.com").first()
         if not admin_user:
             admin_user = User(
-                nombre="Técnico Innotrev",
+                nombre="Admin Innotrev",
                 email="admin@innotrev.com",
                 password_hash=get_password_hash("admin123"),
                 role_id=admin_role.id
@@ -54,7 +56,18 @@ async def create_user():
             )
             db.add(ventas_user)
 
-        # Usuario Cliente (¡NUEVO!)
+        # Usuario Soporte Técnico (¡NUEVO!)
+        soporte_user = db.query(User).filter(User.email == "soporte@innotrev.com").first()
+        if not soporte_user:
+            soporte_user = User(
+                nombre="Soporte Técnico Innotrev",
+                email="soporte@innotrev.com",
+                password_hash=get_password_hash("soporte123"),
+                role_id=tecnico_role.id
+            )
+            db.add(soporte_user)
+
+        # Usuario Cliente
         cliente_user = db.query(User).filter(User.email == "cliente@alpha.com").first()
         if not cliente_user:
             cliente_user = User(

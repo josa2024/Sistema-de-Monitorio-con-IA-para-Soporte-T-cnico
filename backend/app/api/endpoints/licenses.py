@@ -9,20 +9,20 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+# Importamos deps para seguridad
 from app.api import deps
-# ¡Ojo! Asegúrate de importar el modelo correcto donde agregamos los campos. 
+from app.models.roles import RoleEnum
 from app.models.equipment_models import GarantiaLicencia, TipoGarantia 
 from app.models.user_models import User
-from app.services.equipment_service import EquipmentService
 from sqlalchemy import select
 
 router = APIRouter()
 
-# Usar ruta absoluta basada en el directorio actual
 UPLOAD_DIR = Path(__file__).parent.parent.parent.parent / "uploads" / "licenses"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+# CAMBIO AQUÍ: Solo el Administrador puede crear pólizas/garantías
+@router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(deps.require_admin)])
 def create_license(
     *,
     db: Session = Depends(deps.get_db),
@@ -37,7 +37,6 @@ def create_license(
     licencia_key: str | None = Form(None),
     file: UploadFile | None = File(None),
     
-    # NUEVOS CAMPOS OPCIONALES DEL FORMULARIO
     fecha_reporte: str | None = Form(None),
     marca: str | None = Form(None),
     proveedor: str | None = Form(None),
@@ -46,7 +45,7 @@ def create_license(
 ) -> Any:
     """
     Sube y asigna una licencia de software o Expediente de Garantía a un equipo.
-    Genera un Folio automático para las garantías físicas.
+    Accesible SOLAMENTE para Administradores.
     """
     try:
         selected_equipment_id = equipment_id or equipo_id
@@ -62,17 +61,12 @@ def create_license(
         if not selected_tipo:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe proporcionar tipo_licencia/tipo.")
 
-        # Mapeo al Enum de TipoGarantia que tienes en equipment_models
         tipo_licencia_final = TipoGarantia.SOFTWARE if "SOFTWARE" in selected_tipo.upper() else TipoGarantia.HARDWARE
 
         selected_clave_producto = clave_producto or licencia_key
         if not selected_clave_producto and not file:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Debe proporcionar al menos un archivo o una Product Key."
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe proporcionar al menos un archivo o una Product Key.")
 
-        # Parsear fechas requeridas
         try:
             dt_inicio = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
         except ValueError:
@@ -85,13 +79,12 @@ def create_license(
             except ValueError:
                 raise HTTPException(status_code=400, detail=f"Formato de fecha_vencimiento inválido: {fecha_vencimiento}")
 
-        # Parsear fecha_reporte si existe
         dt_reporte = None
         if fecha_reporte:
             try:
                 dt_reporte = datetime.strptime(fecha_reporte, "%Y-%m-%d").date()
             except ValueError:
-                pass # Si falla, se queda en None
+                pass 
 
         file_path = None
         filename = None
@@ -107,18 +100,14 @@ def create_license(
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Error al guardar archivo: {str(e)}")
 
-        # === GENERACIÓN DE FOLIO AUTOMÁTICO (Solo si es Garantía Física) ===
         folio_generado = None
         if tipo_licencia_final == TipoGarantia.HARDWARE:
-            # Crea un string único: GAR - AÑO - MES - 4 NUMEROS RANDOM
             now = datetime.now()
             random_suffix = str(random.randint(1000, 9999))
             folio_generado = f"GAR-{now.strftime('%Y-%m')}-{random_suffix}"
 
-        # Nombre del ejecutivo automático sacado del token de FastAPI
         ejecutivo_nombre = getattr(current_user, 'nombre', current_user.email)
 
-        # Crear el objeto en base de datos usando GarantiaLicencia
         db_license = GarantiaLicencia(
             equipo_id=selected_equipment_id,
             nombre_software=nombre_software,
@@ -126,8 +115,6 @@ def create_license(
             fecha_inicio=dt_inicio,
             fecha_vencimiento=dt_vencimiento,
             licencia_key=selected_clave_producto,
-            
-            # --- NUEVOS CAMPOS DEL EXPEDIENTE ---
             folio=folio_generado,
             fecha_reporte=dt_reporte,
             ejecutivo_cargo=ejecutivo_nombre,
@@ -148,6 +135,7 @@ def create_license(
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
 
+# CAMBIO AQUÍ: Bloqueamos a Ventas, permitimos a Admin, Soporte y Cliente leer
 @router.get("/equipo/{equipo_id}")
 def get_equipment_licenses(
     equipo_id: int,
@@ -155,15 +143,14 @@ def get_equipment_licenses(
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
     """Obtiene licencias de un equipo y las mapea al Frontend"""
-    # Consulta a la tabla GarantiaLicencia
+    if current_user.role.nombre == RoleEnum.VENTAS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El rol de Ventas no tiene acceso a las garantías.")
+
     licencias = db.query(GarantiaLicencia).filter(GarantiaLicencia.equipo_id == equipo_id).all()
     
     resultado = []
     for lic in licencias:
-        # AQUI ESTÁ LA CORRECCIÓN: Navegamos la relación para sacar el nombre real del cliente
         cliente_obj = lic.equipo.cliente if lic.equipo else None
-        
-        # Si tiene nombre, lo usamos. Si no, usamos el email. Si no hay cliente, ponemos por defecto.
         cliente_nombre = "Usuario Innotrev"
         if cliente_obj:
             cliente_nombre = getattr(cliente_obj, 'nombre', None) or getattr(cliente_obj, 'email', "Usuario Innotrev")
@@ -176,28 +163,24 @@ def get_equipment_licenses(
             "licencia_key": lic.licencia_key,
             "fecha_inicio": lic.fecha_inicio.isoformat() if lic.fecha_inicio else None,
             "fecha_vencimiento": lic.fecha_vencimiento.isoformat() if lic.fecha_vencimiento else None,
-            
-            # Campos extra del expediente
             "folio": lic.folio,
             "fecha_reporte": lic.fecha_reporte.isoformat() if lic.fecha_reporte else None,
             "ejecutivo": {"nombre": lic.ejecutivo_cargo},
             "marca": lic.marca,
             "proveedor": lic.proveedor,
-            
-            # AHORA SÍ ENVIAMOS EL NOMBRE AL FRONTEND
             "cliente_nombre": cliente_nombre
         })
         
     return resultado
 
 
-@router.get("/dashboard/expiring")
+@router.get("/dashboard/expiring", dependencies=[Depends(deps.require_admin)])
 def get_expiring_licenses(
     days: int = 30,
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Retorna licencias próximas a caducar mapeadas para el Frontend"""
+    """Retorna licencias próximas a caducar (Solo Admin)"""
     limit_date = (datetime.now() + timedelta(days=days)).date()
     licencias = db.query(GarantiaLicencia).filter(
         GarantiaLicencia.fecha_vencimiento.isnot(None),
@@ -222,21 +205,13 @@ def download_license(
     license_id: int,
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Descarga el archivo de licencia asociado."""
-    # NOTA: Asegúrate de que este endpoint busque en el modelo correcto
+    if current_user.role.nombre == RoleEnum.VENTAS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El rol de Ventas no tiene acceso a las descargas.")
+
     stmt = select(GarantiaLicencia).where(GarantiaLicencia.id == license_id)
     license_obj = db.execute(stmt).scalar_one_or_none()
 
     if not license_obj:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Licencia no encontrada."
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Licencia no encontrada.")
 
-    # Si tuvieras un campo 'archivo_url' en GarantiaLicencia, usarías esta lógica.
-    # Por ahora, devuelvo 404 porque no está en tu modelo actualizado de GarantiaLicencia.
-    # Si decides agregarlo después, puedes descomentar y ajustar esto.
-    raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="La descarga de archivos no está configurada para este modelo de Garantía."
-        )
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La descarga de archivos no está configurada para este modelo de Garantía.")

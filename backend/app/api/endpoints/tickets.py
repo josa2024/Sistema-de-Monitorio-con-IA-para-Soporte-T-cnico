@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session, joinedload
 from datetime import datetime
 from pydantic import BaseModel
 
+# Importamos las dependencias de roles
 from app.api import deps
+from app.models.roles import RoleEnum
 from app.models.ticket import Ticket, TicketLog, ComentarioTicket, TicketStatus, TicketPriority
 from app.models.user_models import User
 from app.models.equipment_models import Equipo
@@ -15,7 +17,7 @@ from app.services.ticket_service import TicketService
 
 router = APIRouter()
 
-# --- NUEVO: Esquema para el Cliente Casual ---
+# --- Esquema para el Cliente Casual ---
 class TicketCasualCreate(BaseModel):
     nombre: str
     contacto: str
@@ -28,8 +30,8 @@ class TicketCasualCreate(BaseModel):
 async def create_casual_ticket(
     *, db: Session = Depends(deps.get_db), ticket_in: TicketCasualCreate
 ) -> Any:
+    # Ruta pública (sin Depends(get_current_active_user)) para usuarios no logueados
     try:
-        # 1. Buscar un administrador para asignarle el ticket huérfano y evitar errores de BD
         fallback_user = db.query(User).filter(User.role_id.in_([1, 2])).first()
         if not fallback_user:
             fallback_user = db.query(User).first()
@@ -37,7 +39,6 @@ async def create_casual_ticket(
         if not fallback_user:
             raise Exception("No se encontró ningún usuario en el sistema para asignar el ticket.")
 
-        # 2. Buscar o crear un Equipo Genérico de soporte externo
         casual_eq = db.query(Equipo).filter(Equipo.numero_serie == "CASUAL-000").first()
         if not casual_eq:
             casual_eq = Equipo(
@@ -50,7 +51,6 @@ async def create_casual_ticket(
             db.commit()
             db.refresh(casual_eq)
 
-        # 3. Guardar los datos de contacto reales del cliente en la descripción
         descripcion_completa = (
             f"**DATOS DEL CLIENTE INVITADO:**\n"
             f"- Nombre: {ticket_in.nombre}\n"
@@ -72,7 +72,6 @@ async def create_casual_ticket(
         db.commit()
         db.refresh(new_ticket)
 
-        # Notificación en tiempo real via WebSocket
         from app.core.websockets import manager
         await manager.broadcast({
             "evento": "NUEVO_TICKET",
@@ -86,10 +85,7 @@ async def create_casual_ticket(
     
     except Exception as e:
         db.rollback()
-        # Esto atrapa el error y lo devuelve limpio, evitando el falso bloqueo de CORS
         raise HTTPException(status_code=500, detail=str(e))
-
-# --- RUTAS EXISTENTES ---
 
 @router.post("/anomalias", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
 async def create_anomaly_ticket(
@@ -111,9 +107,10 @@ def read_tickets(
     estado: Optional[TicketStatus] = None,
     current_user: User = Depends(deps.get_current_active_user) 
 ) -> Any:
+    """ Lectura de tickets: Admin, Ventas y Soporte ven todos. Clientes ven los suyos. """
     query = db.query(Ticket).options(joinedload(Ticket.cliente), joinedload(Ticket.tecnico))
     
-    if current_user.role_id not in [1, 2] and not (current_user.role and current_user.role.nombre in ["ADMIN", "VENTAS"]):
+    if current_user.role.nombre not in [RoleEnum.ADMIN, RoleEnum.VENTAS, RoleEnum.TECNICO]:
         query = query.filter(Ticket.cliente_id == current_user.id)
         
     if estado:
@@ -122,13 +119,19 @@ def read_tickets(
     return query.offset(skip).limit(limit).all()
 
 @router.get("/{ticket_id}", response_model=TicketResponse)
-def read_ticket(*, db: Session = Depends(deps.get_db), ticket_id: int) -> Any:
+def read_ticket(*, db: Session = Depends(deps.get_db), ticket_id: int, current_user: User = Depends(deps.get_current_active_user)) -> Any:
     ticket = db.query(Ticket).options(joinedload(Ticket.cliente), joinedload(Ticket.tecnico)).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="El ticket no existe")
+        
+    # Seguridad: Si es cliente, asegurar que el ticket sea suyo
+    if current_user.role.nombre == RoleEnum.CLIENTE and ticket.cliente_id != current_user.id:
+         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a este ticket.")
+         
     return ticket
 
-@router.patch("/{ticket_id}", response_model=TicketResponse)
+# CAMBIO AQUÍ: Solo ADMIN y SOPORTE TÉCNICO pueden editar tickets
+@router.patch("/{ticket_id}", response_model=TicketResponse, dependencies=[Depends(deps.require_admin_or_tecnico)])
 def update_ticket(
     *,
     db: Session = Depends(deps.get_db),
@@ -142,19 +145,16 @@ def update_ticket(
 
     update_data = ticket_in.dict(exclude_unset=True)
 
-    # Normalizar alias de actualización (estado -> status)
     normalized_update = {}
     for field, value in update_data.items():
         real_field = "status" if field == "estado" else field
         normalized_update[real_field] = value
 
-    # LA MAGIA DE JOSSY: Guarda los valores viejos antes de cambiarlos
     old_values = {
         k: (v.value if hasattr(v, 'value') else v)
         for k, v in {field: getattr(ticket, field) for field in normalized_update.keys()}.items()
     }
 
-    # Serializa datetime en los detalles del log para evitar JSON serialización fallida
     def to_serializable(value):
         if isinstance(value, datetime):
             return value.isoformat()
@@ -166,7 +166,6 @@ def update_ticket(
     for field, value in normalized_update.items():
         setattr(ticket, field, value)
 
-    # Creamos el log avanzado de Jossy con el "antes" y "despues"
     log_db = TicketLog(ticket_id=ticket.id, usuario_id=current_user.id, accion="ACTUALIZACION", detalles={"antes": old_values_safe, "despues": update_data_safe})
     db.add(log_db)
     
@@ -174,10 +173,13 @@ def update_ticket(
     db.refresh(ticket)
     return ticket
 
+# CAMBIO AQUÍ: Clientes, Admin y Soporte pueden comentar. VENTAS no puede.
 @router.post("/{ticket_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
 def create_comment(
     *, db: Session = Depends(deps.get_db), ticket_id: int, comment_in: CommentCreate, current_user: User = Depends(deps.get_current_active_user), ticket_service: TicketService = Depends(TicketService)
 ) -> Any:
+    if current_user.role.nombre == RoleEnum.VENTAS:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El rol de Ventas no puede comentar tickets.")
     return ticket_service.add_comment(db=db, ticket_id=ticket_id, comment_in=comment_in, current_user=current_user)
 
 @router.get("/{ticket_id}/comments", response_model=List[CommentResponse])
@@ -186,7 +188,8 @@ def read_comments(
 ) -> Any:
     return ticket_service.list_comments(db=db, ticket_id=ticket_id, current_user=current_user)
 
-@router.patch("/{ticket_id}/assign", response_model=TicketResponse)
+# CAMBIO AQUÍ: Asignación exclusiva para Admin y Soporte
+@router.patch("/{ticket_id}/assign", response_model=TicketResponse, dependencies=[Depends(deps.require_admin_or_tecnico)])
 async def assign_ticket(
     *, db: Session = Depends(deps.get_db), ticket_id: int, assign_data: TicketAssign, current_user: User = Depends(deps.get_current_active_user), ticket_service: TicketService = Depends(TicketService)
 ) -> Any:

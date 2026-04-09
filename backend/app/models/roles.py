@@ -8,6 +8,7 @@ class RoleEnum(str, enum.Enum):
     TECNICO = "TECNICO"
     CLIENTE = "CLIENTE"
     SOPORTE = "SOPORTE"
+    VENTAS = "VENTAS"  # <--- ¡AQUÍ ESTÁ LA MAGIA!
 
 class Role(Base):
     __tablename__ = "roles"
