@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ShieldCheck, Download, X, Clock, AlertTriangle } from 'lucide-react'; // Cambiamos AlertCircle por AlertTriangle
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../services/api';
@@ -126,10 +127,10 @@ const Garantias = () => {
       )}
 
       {/* MODAL: VISUALIZADOR DE LICENCIAS/GARANTÍAS */}
-      <AnimatePresence>
+      {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         {selectedEqLicencias && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[80vh]">
+          <motion.div key="modal-garantias" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 w-full h-full bg-[#0b1437]/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4" onClick={() => setSelectedEqLicencias(null)}>
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                 <div>
                   <h2 className="font-bold text-slate-800 flex items-center gap-2"><ShieldCheck className="text-blue-600" size={18}/> Protecciones del Equipo</h2>
@@ -182,7 +183,7 @@ const Garantias = () => {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </div>
   );
 };

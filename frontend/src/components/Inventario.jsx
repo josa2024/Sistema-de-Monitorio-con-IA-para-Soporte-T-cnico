@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, X, Truck, Search, FileText, CheckCircle2, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { jsPDF } from 'jspdf';
@@ -173,10 +174,10 @@ const Inventario = () => {
       </div>
 
       {/* Modal Envío Manual */}
-      <AnimatePresence>
+      {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         {isModalOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b1437]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-             <motion.div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-visible">
+          <motion.div key="modal-despacho" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 w-full h-full bg-[#0b1437]/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4" onClick={() => setIsModalOpen(false)}>
+             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-visible" onClick={(e) => e.stopPropagation()}>
                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem]">
                  <h2 className="font-black text-[#0b1437] text-xl flex items-center gap-2"><Truck className="text-blue-600" size={22}/> Despacho Manual</h2>
                  <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-full shadow-sm"><X size={18} /></button>
@@ -247,8 +248,8 @@ const Inventario = () => {
 
         {/* NUEVO MODAL: Validar Venta E-commerce */}
         {isValidating && (
-           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#0b1437]/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-visible">
+           <motion.div key="modal-validar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 w-full h-full bg-[#0b1437]/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4" onClick={() => setIsValidating(false)}>
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl overflow-visible" onClick={(e) => e.stopPropagation()}>
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem]">
                 <h2 className="font-black text-[#0b1437] text-xl flex items-center gap-2"><ShoppingBag className="text-purple-600" size={22}/> Validar Venta</h2>
                 <button onClick={() => setIsValidating(false)} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-full shadow-sm"><X size={18} /></button>
@@ -267,7 +268,7 @@ const Inventario = () => {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </div>
   );
 };

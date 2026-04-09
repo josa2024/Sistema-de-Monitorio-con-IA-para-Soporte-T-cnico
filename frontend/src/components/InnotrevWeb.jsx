@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowRight, Bot, ShieldCheck, Cpu, Smartphone, LogIn, LogOut, UserCircle, PackageOpen, Ticket, Box, Truck, CheckCircle2, X, Store, CreditCard, AlertTriangle, ShieldAlert, UploadCloud, Camera, Sparkles, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Chatbot from './Chatbot';
@@ -112,6 +113,28 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
       });
       
       if (res.ok) { 
+        // Si se reporta daño, empaque abierto o falla al encender, generamos ticket automático
+        if (formRecepcion.estado_empaque === 'Abierto' || formRecepcion.estado_empaque === 'Dañado' || !formRecepcion.confirmacion_encendido) {
+          const ticketData = {
+            titulo: `Alerta de Recepción: ${formRecepcion.estado_empaque !== 'Excelente' ? 'Daño/Manipulación' : 'Falla de Encendido'}`,
+            descripcion: `El cliente reportó una anomalía durante la recepción física del equipo ${selectedEq.modelo} (S/N: ${selectedEq.numero_serie}).\n\nDetalles marcados:\n- Estado del empaque: ${formRecepcion.estado_empaque}\n- ¿Encendió correctamente?: ${formRecepcion.confirmacion_encendido ? 'Sí' : 'No (o no confirmado por prevención)'}\n- Notas adicionales: ${formRecepcion.notas || 'Ninguna'}`,
+            equipo_id: selectedEq.id,
+            cliente_id: selectedEq.cliente_id,
+            categoria: "Logística / Envío",
+            prioridad: "ALTA"
+          };
+          
+          try {
+            await fetch('http://localhost:8000/api/v1/tickets/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+              body: JSON.stringify(ticketData)
+            });
+          } catch (error) {
+            console.error("Error al generar ticket automático de recepción:", error);
+          }
+        }
+
         setIsModalOpen(false); 
         fetchData(); 
         setCurrentView('recepcion'); 
@@ -209,9 +232,9 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
         </div>
       </nav>
 
-      <AnimatePresence>
+      {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         {showLoginModal && !isAuthenticated && <Login onLoginSuccess={(t, r, n) => { setShowLoginModal(false); onLoginSuccess(t, r, n); }} onClose={() => setShowLoginModal(false)} />}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
 
       <main className={`flex-1 flex flex-col relative z-10 ${currentView === 'support' ? 'h-[calc(100dvh-80px)] max-h-[calc(100dvh-80px)] overflow-hidden' : 'overflow-y-auto'}`}>
         
@@ -547,7 +570,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
       </footer>
 
       {/* SE RESTAURARON LAS MODALES DE ACCIÓN */}
-      <AnimatePresence>
+      {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         
         {/* MODAL DE PAGO (CHECKOUT STRIPE-LIKE) */}
         {isPaymentModalOpen && (
@@ -640,11 +663,16 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
                   {/* Checkbox Mejorado */}
                   <label className="flex items-center gap-4 bg-slate-50 hover:bg-slate-100 p-4 rounded-2xl border border-slate-200 cursor-pointer transition-colors group">
                     <div className="relative flex items-center justify-center">
-                      <input type="checkbox" required checked={formRecepcion.confirmacion_encendido} onChange={e => setFormRecepcion({...formRecepcion, confirmacion_encendido: e.target.checked})} className="w-6 h-6 border-2 border-slate-300 rounded-lg appearance-none checked:bg-blue-600 checked:border-blue-600 transition-colors cursor-pointer peer" />
+                      <input type="checkbox" required={formRecepcion.estado_empaque === 'Excelente'} checked={formRecepcion.confirmacion_encendido} onChange={e => setFormRecepcion({...formRecepcion, confirmacion_encendido: e.target.checked})} className="w-6 h-6 border-2 border-slate-300 rounded-lg appearance-none checked:bg-blue-600 checked:border-blue-600 transition-colors cursor-pointer peer" />
                       <CheckCircle2 size={16} className="absolute text-white opacity-0 peer-checked:opacity-100 pointer-events-none" />
                     </div>
                     <span className="text-sm font-bold text-slate-700 group-hover:text-blue-700 transition-colors">Confirmo que el equipo encendió correctamente</span>
                   </label>
+
+                  <div>
+                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Comentarios Adicionales (Opcional)</label>
+                    <textarea placeholder="Describe cualquier detalle sobre el empaque o equipo (ej. Faltan cables, caja golpeada)..." value={formRecepcion.notas} onChange={e => setFormRecepcion({...formRecepcion, notas: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none" rows="2"></textarea>
+                  </div>
 
                   <div className="pt-4 flex justify-end gap-3">
                       <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-3.5 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
@@ -718,7 +746,7 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
              </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </div>
   );
 };
