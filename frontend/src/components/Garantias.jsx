@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ShieldCheck, Download, X, Clock, AlertTriangle, User, Calendar, Tag, Factory, Image as ImageIcon } from 'lucide-react';
+import { ShieldCheck, Download, X, Clock, AlertTriangle, User, Calendar, Tag, Factory, Image as ImageIcon, Search, Trash2, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../services/api';
 
@@ -8,7 +8,12 @@ const Garantias = () => {
   const [equiposInstalados, setEquiposInstalados] = useState([]);
   const [selectedEqLicencias, setSelectedEqLicencias] = useState(null);
   const [licenciasCliente, setLicenciasCliente] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isLoadingLicencias, setIsLoadingLicencias] = useState(false);
+
+  // Validar rol actual
+  const userRole = localStorage.getItem('userRole');
+  const canModify = userRole === 'ADMIN' || userRole === 'VENTAS';
 
   useEffect(() => {
     const fetchEquipos = async () => {
@@ -52,6 +57,45 @@ const Garantias = () => {
     }
   };
 
+  // --- NUEVAS FUNCIONES PARA ADMIN Y VENTAS ---
+  const handleUpdateDate = async (id, currentDate) => {
+    const defaultDate = currentDate ? currentDate.split('T')[0] : '';
+    const newDate = window.prompt("Ingresa la nueva fecha de vencimiento (YYYY-MM-DD):", defaultDate);
+    if (!newDate || newDate === defaultDate) return;
+    
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/licencias/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ fecha_vencimiento: newDate })
+      });
+      if(!res.ok) throw new Error("Error al actualizar");
+      alert("✅ Fecha actualizada correctamente");
+      verLicencias(selectedEqLicencias); // Recargar
+    } catch (e) {
+      alert("❌ " + e.message);
+    }
+  };
+
+  const handleDeleteLicense = async (id) => {
+    if(!window.confirm("⚠️ ¿Estás COMPLETAMENTE seguro de eliminar este expediente? Esta acción es irreversible.")) return;
+    
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/licencias/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      if(!res.ok) throw new Error("Error al eliminar");
+      alert("✅ Expediente eliminado");
+      verLicencias(selectedEqLicencias); // Recargar
+    } catch (e) {
+      alert("❌ " + e.message);
+    }
+  };
+
   const obtenerBadgeVencimiento = (fechaVencimiento) => {
     if (!fechaVencimiento) return null;
     const hoy = new Date();
@@ -68,16 +112,42 @@ const Garantias = () => {
     return <span className="text-xs font-black px-3 py-1 rounded-md bg-emerald-100 text-emerald-700 flex items-center gap-1"><ShieldCheck size={14}/> Activa ({meses} meses)</span>;
   };
 
+  const filteredEquipos = equiposInstalados.filter(eq => 
+    eq.numero_serie.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    eq.modelo.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 w-full py-8 px-4">
-      <div>
-        <h2 className="text-3xl font-black text-[#0b1437]">Expedientes de Garantía</h2>
-        <p className="text-slate-500 mt-2 text-lg">Consulta el estado, coberturas y evidencias de tu hardware instalado.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h2 className="text-3xl font-black text-[#0b1437]">Expedientes de Garantía</h2>
+          <p className="text-slate-500 mt-2 text-lg">Consulta el estado, coberturas y evidencias de tu hardware instalado.</p>
+        </div>
+        
+        {equiposInstalados.length > 0 && (
+          <div className="relative w-full md:w-96 shrink-0">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text" 
+              placeholder="Buscar por S/N o modelo..." 
+              className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-medium text-slate-700 shadow-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
-      {equiposInstalados.length > 0 ? (
+      {equiposInstalados.length === 0 ? (
+        <div className="bg-white p-16 rounded-[2rem] shadow-sm border border-slate-200 text-center text-slate-400">
+          <ShieldCheck size={56} className="mx-auto mb-4 opacity-40" />
+          <h3 className="text-xl font-black text-slate-700 mb-2">Sin equipos activos</h3>
+          <p className="text-base text-slate-500">Primero se debe registrar la recepción de los equipos para generar su expediente.</p>
+        </div>
+      ) : filteredEquipos.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {equiposInstalados.map(eq => (
+          {filteredEquipos.map(eq => (
             <div key={eq.id} className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm hover:shadow-xl transition-all flex flex-col group relative overflow-hidden">
               <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -z-10 group-hover:scale-110 transition-transform"></div>
               <div className="flex justify-between items-start mb-4">
@@ -95,19 +165,17 @@ const Garantias = () => {
         </div>
       ) : (
         <div className="bg-white p-16 rounded-[2rem] shadow-sm border border-slate-200 text-center text-slate-400">
-          <ShieldCheck size={56} className="mx-auto mb-4 opacity-40" />
-          <h3 className="text-xl font-black text-slate-700 mb-2">Sin equipos activos</h3>
-          <p className="text-base text-slate-500">Primero se debe registrar la recepción de los equipos para generar su expediente.</p>
+          <Search size={56} className="mx-auto mb-4 opacity-40" />
+          <h3 className="text-xl font-black text-slate-700 mb-2">No se encontraron resultados</h3>
+          <p className="text-base text-slate-500">No hay ningún equipo activo que coincida con "{searchTerm}".</p>
         </div>
       )}
 
-      {/* MODAL: EXPEDIENTE COMPLETO DE GARANTÍA */}
       {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         {selectedEqLicencias && (
           <motion.div key="modal-expediente" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-[#050b1a]/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4" onClick={() => setSelectedEqLicencias(null)}>
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
               
-              {/* CABECERA DEL MODAL */}
               <div className="p-6 md:p-8 border-b border-slate-100 flex justify-between items-start bg-slate-50 relative overflow-hidden shrink-0">
                 <div className="absolute -right-10 -top-10 text-blue-50 opacity-50 pointer-events-none"><ShieldCheck size={150} /></div>
                 <div className="relative z-10">
@@ -118,7 +186,6 @@ const Garantias = () => {
                 <button onClick={() => setSelectedEqLicencias(null)} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-full shadow-sm border border-slate-200 transition-colors relative z-10"><X size={20} /></button>
               </div>
 
-              {/* CUERPO DEL MODAL (SCROLLABLE) */}
               <div className="p-6 md:p-8 overflow-y-auto flex-1 bg-white custom-scrollbar">
                 {isLoadingLicencias ? (
                    <div className="text-center py-20 text-slate-500 font-bold animate-pulse">Cargando datos del expediente...</div>
@@ -127,7 +194,6 @@ const Garantias = () => {
                     {licenciasCliente.map(lic => (
                       <div key={lic.id} className="border-2 border-slate-100 rounded-3xl p-6 relative overflow-hidden">
                         
-                        {/* FILA 1: FOLIO Y ESTADO */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-6 border-b border-slate-100 gap-4">
                           <div>
                             <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Folio / ID de Garantía</p>
@@ -135,28 +201,36 @@ const Garantias = () => {
                           </div>
                           <div className="flex flex-col md:items-end gap-2">
                             {obtenerBadgeVencimiento(lic.fecha_vencimiento)}
-                            <button onClick={() => handleDownloadCertificado(lic.id, lic.nombre_software)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-xl transition-colors text-xs font-black flex items-center gap-2 shadow-sm border border-blue-100">
-                              <Download size={14} /> Descargar Certificado
-                            </button>
+                            <div className="flex gap-2">
+                              {/* BOTONES ADMINISTRATIVOS */}
+                              {canModify && (
+                                <>
+                                  <button onClick={() => handleUpdateDate(lic.id, lic.fecha_vencimiento)} className="text-slate-600 bg-slate-50 hover:bg-slate-200 px-3 py-2 rounded-xl transition-colors text-xs font-black flex items-center gap-2 shadow-sm border border-slate-200" title="Editar Vencimiento">
+                                    <Edit3 size={14} />
+                                  </button>
+                                  <button onClick={() => handleDeleteLicense(lic.id)} className="text-red-600 bg-red-50 hover:bg-red-600 hover:text-white px-3 py-2 rounded-xl transition-colors text-xs font-black flex items-center gap-2 shadow-sm border border-red-100" title="Eliminar Garantía">
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
+                              <button onClick={() => handleDownloadCertificado(lic.id, lic.nombre_software)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-xl transition-colors text-xs font-black flex items-center gap-2 shadow-sm border border-blue-100">
+                                <Download size={14} /> Descargar
+                              </button>
+                            </div>
                           </div>
                         </div>
 
-                        {/* FILA 2: CUADRÍCULA DE DATOS NUEVOS */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                          
                           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                             <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5 mb-1"><Tag size={14}/> Marca y Proveedor</p>
                             <p className="text-sm font-black text-[#0b1437]">{lic.marca || "Zebra Technologies"}</p>
                             <p className="text-xs text-slate-500 font-medium">{lic.proveedor || "Distribuidor Autorizado"}</p>
                           </div>
-
                           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                             <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5 mb-1"><User size={14}/> Detalles Operativos</p>
-                            {/* AQUÍ ESTÁ EL CAMBIO PRINCIPAL */}
                             <p className="text-sm font-black text-[#0b1437]">{lic.cliente_nombre}</p>
                             <p className="text-xs text-slate-500 font-medium">Ejecutivo: {lic.ejecutivo?.nombre || lic.ejecutivo_cargo || "Admin General"}</p>
                           </div>
-
                           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                             <p className="text-xs font-bold text-slate-400 flex items-center gap-1.5 mb-1"><Calendar size={14}/> Línea de Tiempo</p>
                             <div className="text-xs text-slate-600 font-medium space-y-1">
@@ -165,10 +239,8 @@ const Garantias = () => {
                               <p className="flex justify-between"><span>Cierre:</span> <span className="font-bold text-red-500">{new Date(lic.fecha_vencimiento).toLocaleDateString()}</span></p>
                             </div>
                           </div>
-
                         </div>
 
-                        {/* FILA 3: FOTO DE EVIDENCIA */}
                         <div className="bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden flex flex-col md:flex-row items-stretch">
                           <div className="bg-slate-100 p-6 flex flex-col justify-center items-center border-r border-slate-200 md:w-1/3 text-center">
                             <ImageIcon size={32} className="text-slate-400 mb-2"/>

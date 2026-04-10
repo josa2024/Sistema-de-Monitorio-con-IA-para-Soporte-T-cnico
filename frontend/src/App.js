@@ -15,16 +15,21 @@ function App() {
   const [userName, setUserName] = useState(localStorage.getItem('userName') || '');
   const [activeTab, setActiveTab] = useState(localStorage.getItem('activeTab') || 'dashboard');
 
+  // Banderas de roles para facilitar la lógica
+  const isAdmin = userRole === 'ADMIN';
+  const isVentas = userRole === 'VENTAS';
+  const isTecnico = userRole === 'TECNICO';
+
   // Redirección inteligente de pestañas si el rol no tiene permisos
   useEffect(() => {
-    if (userRole === 'VENTAS' && ['dashboard', 'polizas', 'cliente_garantias'].includes(activeTab)) {
+    if (isVentas && ['dashboard', 'historial'].includes(activeTab)) {
       setActiveTab('inventario');
-    } else if (userRole === 'TECNICO' && ['dashboard', 'historial'].includes(activeTab)) {
-      setActiveTab('cliente_tickets');
+    } else if (isTecnico && ['inventario', 'historial'].includes(activeTab)) {
+      setActiveTab('dashboard'); // El técnico ahora sí tiene dashboard
     } else {
       localStorage.setItem('activeTab', activeTab);
     }
-  }, [activeTab, userRole]);
+  }, [activeTab, isVentas, isTecnico]);
 
   const handleLoginSuccess = (token, role, nombre) => {
     localStorage.setItem('token', token);
@@ -56,11 +61,6 @@ function App() {
       />
     );
   }
-
-  // Banderas de roles para facilitar la lectura del menú
-  const isAdmin = userRole === 'ADMIN';
-  const isVentas = userRole === 'VENTAS';
-  const isTecnico = userRole === 'TECNICO';
 
   // --- MINI-COMPONENTE PARA LOS BOTONES DEL MENÚ ---
   const NavItem = ({ id, icon: Icon, label }) => {
@@ -106,25 +106,23 @@ function App() {
         <nav className="flex-1 py-8 px-5 space-y-2 overflow-y-auto custom-scrollbar relative z-10">
           <p className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Panel de Control</p>
           
-          {/* Visible solo para Admin */}
-          {isAdmin && <NavItem id="dashboard" icon={LayoutDashboard} label="Dashboard General" />}
+          {/* Visible para Admin y Técnico */}
+          {(isAdmin || isTecnico) && <NavItem id="dashboard" icon={LayoutDashboard} label="Dashboard General" />}
           
-          {/* Visible para todos los roles internos */}
-          {(isAdmin || isVentas || isTecnico) && <NavItem id="inventario" icon={Package} label="Gestión de Inventario" />}
+          {/* Visible para Admin y Ventas */}
+          {(isAdmin || isVentas) && <NavItem id="inventario" icon={Package} label="Gestión de Inventario" />}
           
-          {/* Visible para Admin y Ventas (Para dar de alta a clientes) */}
-          {(isAdmin || isVentas) && <NavItem id="historial" icon={Users} label="Registro de Usuarios" />}
+          {/* Visible SOLO para Admin */}
+          {isAdmin && <NavItem id="historial" icon={Users} label="Registro de Usuarios" />}
           
-          {/* Visible solo para Admin y Soporte Técnico */}
-          {(isAdmin || isTecnico) && (
+          {/* Visible para Todos los Internos */}
+          {(isAdmin || isTecnico || isVentas) && (
             <>
               <NavItem id="polizas" icon={ShieldCheck} label="Bóveda de Licencias" />
               <NavItem id="cliente_garantias" icon={Award} label="Visor de Garantías" />
+              <NavItem id="cliente_tickets" icon={Ticket} label="Mesa de Tickets" />
             </>
           )}
-          
-          {/* Visible para todos los roles internos */}
-          {(isAdmin || isVentas || isTecnico) && <NavItem id="cliente_tickets" icon={Ticket} label="Mesa de Tickets" />}
 
           <div className="w-full h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-6"></div>
         </nav>
@@ -155,12 +153,12 @@ function App() {
             transition={{ duration: 0.3, ease: "easeOut" }}
             className="flex-1 flex flex-col"
           >
-            {activeTab === 'dashboard' && isAdmin && <Dashboard />}
-            {activeTab === 'inventario' && (isAdmin || isVentas || isTecnico) && <Inventario />}
-            {activeTab === 'historial' && (isAdmin || isVentas) && <HistorialUsuarios />}
-            {activeTab === 'polizas' && (isAdmin || isTecnico) && <Licencias />}
-            {activeTab === 'cliente_garantias' && (isAdmin || isTecnico) && <Garantias />}
-            {activeTab === 'cliente_tickets' && (isAdmin || isVentas || isTecnico) && <ClienteTickets />}
+            {activeTab === 'dashboard' && (isAdmin || isTecnico) && <Dashboard />}
+            {activeTab === 'inventario' && (isAdmin || isVentas) && <Inventario />}
+            {activeTab === 'historial' && isAdmin && <HistorialUsuarios />}
+            {activeTab === 'polizas' && (isAdmin || isTecnico || isVentas) && <Licencias />}
+            {activeTab === 'cliente_garantias' && (isAdmin || isTecnico || isVentas) && <Garantias />}
+            {activeTab === 'cliente_tickets' && (isAdmin || isTecnico || isVentas) && <ClienteTickets />}
           </motion.div>
         </AnimatePresence>
       </main>

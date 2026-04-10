@@ -17,6 +17,7 @@ const Inventario = () => {
   const [form, setForm] = useState({ modelo: '', numero_serie: '', marca: '', cliente_id: '' });
   const [valForm, setValForm] = useState({ numero_serie: '' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [equipmentSearchTerm, setEquipmentSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
   const [isCreatingClient, setIsCreatingClient] = useState(false);
@@ -38,6 +39,14 @@ const Inventario = () => {
   useEffect(() => { fetchData(); }, []);
 
   const filteredClients = clientsList.filter(c => c.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || c.email.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  // Filtramos los equipos por S/N, modelo, cliente o estado
+  const filteredEquipment = equipmentList.filter(eq => {
+    const clientName = clientsList.find(c => c.id === eq.cliente_id)?.nombre || '';
+    const search = equipmentSearchTerm.toLowerCase();
+    return eq.modelo.toLowerCase().includes(search) || eq.numero_serie.toLowerCase().includes(search) ||
+           clientName.toLowerCase().includes(search) || eq.status.toLowerCase().replace('_', ' ').includes(search);
+  });
 
   // Envío Directo (Manual)
   const handleDispatch = async (e) => {
@@ -139,22 +148,46 @@ const Inventario = () => {
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-        <div><h1 className="text-3xl font-black text-[#0b1437]">Ventas y Envíos</h1><p className="text-slate-500 mt-2 font-medium">Valida solicitudes de compra, despacha hardware y genera PDF.</p></div>
-        <button onClick={() => {setForm({ modelo: '', numero_serie: 'INN-' + Math.random().toString(36).substr(2, 7).toUpperCase(), marca: '', cliente_id: '' }); setIsModalOpen(true);}} className="bg-[#0b1437] hover:bg-blue-800 text-white px-6 py-3.5 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all hover:scale-105">
-          <Plus size={20} /> Envío Manual
-        </button>
+      <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-6">
+        <div>
+          <h1 className="text-3xl font-black text-[#0b1437]">Ventas y Envíos</h1>
+          <p className="text-slate-500 mt-2 font-medium">Valida solicitudes de compra, despacha hardware y genera PDF.</p>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+          {equipmentList.length > 0 && (
+            <div className="relative w-full sm:w-80 shrink-0">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <input 
+                type="text" 
+                placeholder="Buscar equipo, S/N, cliente o estado..." 
+                className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-medium text-slate-700 shadow-sm"
+                value={equipmentSearchTerm}
+                onChange={(e) => setEquipmentSearchTerm(e.target.value)}
+              />
+            </div>
+          )}
+          <button onClick={() => {setForm({ modelo: '', numero_serie: 'INN-' + Math.random().toString(36).substr(2, 7).toUpperCase(), marca: '', cliente_id: '' }); setIsModalOpen(true);}} className="w-full sm:w-auto bg-[#0b1437] hover:bg-blue-800 text-white px-6 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 transition-all hover:scale-105 shrink-0">
+            <Plus size={20} /> Envío Manual
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50/80 border-b border-slate-100">
-            <tr className="text-slate-400 text-[11px] uppercase font-black tracking-widest">
-              <th className="px-8 py-5">Equipo Innotrev</th><th className="px-8 py-5">S/N</th><th className="px-8 py-5">Cliente</th><th className="px-8 py-5">Estado</th><th className="px-8 py-5 text-right">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50 text-sm">
-            {equipmentList.map(eq => (
+      {equipmentList.length === 0 ? (
+        <div className="bg-white p-16 rounded-[2rem] shadow-sm border border-slate-200 text-center text-slate-400">
+          <Truck size={56} className="mx-auto mb-4 opacity-40 text-blue-400" />
+          <h3 className="text-xl font-black text-slate-700 mb-2">Sin inventario activo</h3>
+          <p className="text-base text-slate-500">No hay equipos registrados ni envíos pendientes.</p>
+        </div>
+      ) : filteredEquipment.length > 0 ? (
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-x-auto">
+          <table className="w-full text-left min-w-[900px]">
+            <thead className="bg-slate-50/80 border-b border-slate-100">
+              <tr className="text-slate-400 text-[11px] uppercase font-black tracking-widest">
+                <th className="px-8 py-5 w-[25%]">Equipo Innotrev</th><th className="px-8 py-5 w-[20%]">S/N</th><th className="px-8 py-5 w-[25%]">Cliente</th><th className="px-8 py-5 w-[15%]">Estado</th><th className="px-8 py-5 text-right w-[15%]">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 text-sm">
+              {filteredEquipment.map(eq => (
               <tr key={eq.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-8 py-5 font-black text-[#0b1437]">{eq.modelo}</td>
                 <td className="px-8 py-5 font-mono text-slate-500 font-bold">{eq.numero_serie}</td>
@@ -168,10 +201,17 @@ const Inventario = () => {
                   )}
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-white p-16 rounded-[2rem] shadow-sm border border-slate-200 text-center text-slate-400">
+          <Search size={56} className="mx-auto mb-4 opacity-40" />
+          <h3 className="text-xl font-black text-slate-700 mb-2">No se encontraron resultados</h3>
+          <p className="text-base text-slate-500">No hay ningún registro que coincida con "{equipmentSearchTerm}".</p>
+        </div>
+      )}
 
       {/* Modal Envío Manual */}
       {typeof document !== 'undefined' && createPortal(<AnimatePresence>
