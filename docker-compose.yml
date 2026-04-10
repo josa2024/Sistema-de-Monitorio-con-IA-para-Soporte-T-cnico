@@ -13,7 +13,6 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      # Verifica que la BD esté lista para aceptar conexiones
       test: ["CMD-SHELL", "pg_isready -U innotrev_user -d innotrev_db"]
       interval: 10s
       timeout: 5s
@@ -31,7 +30,6 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      # Verifica que Redis esté respondiendo
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
@@ -46,15 +44,12 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: always
-    # El comando `--reload` es ideal para desarrollo, ya que reinicia el servidor
-    # automáticamente al detectar cambios en el código.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # ELIMINAMOS EL RELOAD PARA AHORRAR RAM (Adiós Error 12)
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     volumes:
-      # Montamos el código fuente para que el hot-reload funcione
       - ./backend:/home/app
-      # Volumen administrado por Docker para evitar conflictos de permisos
       - uploads_data:/home/app/uploads
     env_file:
       - ./backend/.env
@@ -67,7 +62,6 @@ services:
       - innotrev-net
 
   # --- Worker de Celery ---
-  # Ejecuta tareas pesadas en segundo plano (ej. enviar emails, procesar datos)
   celery_worker:
     container_name: innotrev_celery_worker
     build: ./backend
@@ -89,7 +83,6 @@ services:
       - innotrev-net
 
   # --- Programador de Tareas de Celery ---
-  # Responsable de lanzar tareas programadas (ej. "revisar licencias todos los días a medianoche")
   celery_beat:
     container_name: innotrev_celery_beat
     build: ./backend
@@ -116,10 +109,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - WDS_SOCKET_PORT=0  # <--- AQUÍ ESTÁ LA SOLUCIÓN AL ERROR ROJO
+      - WDS_SOCKET_PORT=0
     volumes:
-      # Montamos el código fuente, pero no los node_modules.
-      # Estos últimos vivirán solo dentro del contenedor para evitar conflictos.
       - ./frontend:/app
       - /app/node_modules
     depends_on:

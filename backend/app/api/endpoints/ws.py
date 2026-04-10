@@ -1,10 +1,16 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query, status
 import logging
+from jose import jwt, JWTError
+from sqlalchemy.orm import Session
 
 # Importamos la instancia global de tu ConnectionManager
 from app.core.websockets import manager
-# Importamos dependencias de seguridad (ajusta la ruta según tu estructura de auth)
-from app.api import deps 
+# Importamos dependencias y configuración para la validación del token
+from app.api.deps import get_db
+from app.core.config import settings
+from app.models.user_models import User
+from app.models.roles import RoleEnum
+
 
 # Configuramos un logger básico
 logger = logging.getLogger(__name__)
@@ -14,25 +20,39 @@ router = APIRouter()
 @router.websocket("/tickets")
 async def websocket_tickets_endpoint(
     websocket: WebSocket,
-    token: str = Query(...) 
+    token: str = Query(...),
+    db: Session = Depends(get_db)
 ):
     """
     Endpoint de WebSocket para escuchar eventos de los tickets en tiempo real.
     HU-02: Monitoreo de Anomalías.
     Ruta final: ws://tu-dominio.com/api/v1/ws/tickets (dependiendo de tu prefijo global)
     """
-    # 0. Validar Token (Pseudo-código, depende de tu implementación exacta de deps.get_current_user)
+    # 0. Validar Token y Rol del usuario
     try:
-        # Simulamos validación. En producción usarías tu función de decodificar JWT
-        # user = deps.get_current_user_from_token(token)
-        pass 
-    except Exception:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token payload")
+            return
+
+        user: User = db.query(User).filter(User.email == email).first()
+        if user is None or not user.is_active:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="User not found or inactive")
+            return
+
+        # HU-02 es para Técnicos. Solo permitimos la conexión a roles autorizados.
+        if user.role.nombre not in [RoleEnum.ADMIN, RoleEnum.TECNICO]:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Insufficient permissions")
+            return
+
+    except JWTError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
     # 1. Aceptamos e incluimos la conexión en el manager
     await manager.connect(websocket)
-    logger.info("Nuevo cliente conectado al WebSocket de tickets.")
+    logger.info(f"Técnico '{user.email}' (ID: {user.id}) conectado al WebSocket de tickets.")
     
     try:
         # 2. Bucle infinito para mantener la conexión viva
@@ -41,10 +61,7 @@ async def websocket_tickets_endpoint(
             # El servidor usará manager.broadcast() desde los Servicios para enviar alertas.
             data = await websocket.receive_text()
             
-            # Opcional: Procesar comandos entrantes si fuera necesario
-            # logger.debug(f"Mensaje recibido del cliente: {data}")
-            
     except WebSocketDisconnect:
         # 3. Manejo limpio cuando el cliente cierra la pestaña
         manager.disconnect(websocket)
-        logger.info("Un cliente se ha desconectado del WebSocket de tickets.")
+        logger.info(f"Técnico '{user.email}' (ID: {user.id}) se ha desconectado del WebSocket.")

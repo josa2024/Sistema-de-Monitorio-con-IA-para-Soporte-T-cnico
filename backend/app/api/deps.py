@@ -87,22 +87,3 @@ require_internal_staff = RoleChecker([RoleEnum.ADMIN, RoleEnum.TECNICO, RoleEnum
 
 # 5. Acceso exclusivo para Clientes
 require_cliente = RoleChecker([RoleEnum.CLIENTE])
-
-
-# ==========================================
-# FUNCIONES LEGACY (Mantenidas por compatibilidad temporal)
-# ==========================================
-def get_current_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
-    if not getattr(current_user, 'role', None) or current_user.role.nombre != RoleEnum.ADMIN:
-        raise HTTPException(status_code=403, detail="The user does not have enough privileges")
-    return current_user
-
-def get_current_technician_user(current_user: User = Depends(get_current_active_user)) -> User:
-    if not getattr(current_user, 'role', None) or current_user.role.nombre != RoleEnum.TECNICO:
-        raise HTTPException(status_code=403, detail="The user does not have enough privileges")
-    return current_user
-
-def get_current_admin_or_technician_user(current_user: User = Depends(get_current_active_user)) -> User:
-    if not getattr(current_user, 'role', None) or current_user.role.nombre not in [RoleEnum.ADMIN, RoleEnum.TECNICO]:
-        raise HTTPException(status_code=403, detail="The user does not have enough privileges")
-    return current_user
