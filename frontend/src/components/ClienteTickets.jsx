@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Ticket, MessageSquare, FileText, X, AlertTriangle } from 'lucide-react';
+import { Ticket, MessageSquare, FileText, X, AlertTriangle, Search, Send, RefreshCw } from 'lucide-react';
 import { getAuthHeaders } from '../services/api';
 import { jsPDF } from 'jspdf';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,35 +9,90 @@ const ClienteTickets = () => {
   const [tickets, setTickets] = useState([]);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [ticketComments, setTicketComments] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Nuevos estados para Soporte/Admin
+  const [newComment, setNewComment] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  useEffect(() => {
-    const fetchTickets = async () => {
-      try {
-        const headers = getAuthHeaders();
-        const resTk = await fetch('http://localhost:8000/api/v1/tickets/?t=' + Date.now(), { 
-          headers
-        });
-        if (resTk.ok) setTickets(await resTk.json());
-        else if (resTk.status === 401) console.error("Token inválido");
-      } catch (error) {
-        console.error("Error al cargar tickets:", error);
-      }
-    };
-    fetchTickets();
-  }, []);
+  // Validar rol actual
+  const userRole = localStorage.getItem('userRole');
+  const canInteract = userRole === 'ADMIN' || userRole === 'TECNICO';
+
+  const fetchTickets = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const resTk = await fetch('http://localhost:8000/api/v1/tickets/?t=' + Date.now(), { headers });
+      if (resTk.ok) setTickets(await resTk.json());
+      else if (resTk.status === 401) console.error("Token inválido");
+    } catch (error) {
+      console.error("Error al cargar tickets:", error);
+    }
+  };
+
+  useEffect(() => { fetchTickets(); }, []);
+
+  const fetchComments = async (ticketId) => {
+    try {
+      const headers = getAuthHeaders();
+      const res = await fetch(`http://localhost:8000/api/v1/tickets/${ticketId}/comments`, { headers });
+      if (res.ok) setTicketComments(await res.json());
+    } catch (e) { console.error(e); }
+  }
 
   const handleOpenTicket = async (ticket) => {
     setSelectedTicket(ticket);
-    try {
-      const headers = getAuthHeaders();
-      const res = await fetch(`http://localhost:8000/api/v1/tickets/${ticket.id}/comments`, { headers });
-      if (res.ok) setTicketComments(await res.json());
-    } catch (e) { console.error(e); }
+    await fetchComments(ticket.id);
   };
 
   const handleCloseModal = () => {
     setSelectedTicket(null);
     setTicketComments([]);
+    setNewComment('');
+  };
+
+  // --- NUEVAS FUNCIONES OPERATIVAS ---
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    setIsUpdating(true);
+    try {
+      const headers = getAuthHeaders();
+      headers['Content-Type'] = 'application/json';
+      await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ contenido: newComment })
+      });
+      setNewComment('');
+      await fetchComments(selectedTicket.id); // Recargar comentarios
+    } catch (e) {
+      alert("Error al enviar comentario");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleStatusChange = async (e) => {
+    const newStatus = e.target.value;
+    setIsUpdating(true);
+    try {
+      const headers = getAuthHeaders();
+      headers['Content-Type'] = 'application/json';
+      const res = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ estado: newStatus })
+      });
+      if (res.ok) {
+        const updatedTicket = await res.json();
+        setSelectedTicket(updatedTicket);
+        fetchTickets(); // Actualizar lista principal
+      }
+    } catch (err) {
+      alert("Error al cambiar estado");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const generarComprobanteTicket = (ticket) => {
@@ -63,16 +118,42 @@ const ClienteTickets = () => {
     doc.save(`Ticket_Soporte_${ticket.id}.pdf`);
   };
 
+  const filteredTickets = tickets.filter(t => 
+    String(t.id).includes(searchTerm) || 
+    (t.descripcion && t.descripcion.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (t.status && t.status.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (t.categoria && t.categoria.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 w-full py-8">
-      <div className="flex justify-between items-end">
+    <div className="max-w-5xl mx-auto space-y-6 w-full py-8 px-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Historial de Soporte</h2>
           <p className="text-slate-500 mt-1">Consulta el estado de los reportes generados por nuestro asistente IA.</p>
         </div>
+        
+        {tickets.length > 0 && (
+          <div className="relative w-full md:w-80 shrink-0">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <input 
+              type="text" 
+              placeholder="Buscar por folio, descripción o estado..." 
+              className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-medium text-slate-700 shadow-sm"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        )}
       </div>
 
-      {tickets.length > 0 ? (
+      {tickets.length === 0 ? (
+        <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center text-slate-400">
+          <Ticket size={56} className="mx-auto mb-4 opacity-40 text-blue-400" />
+          <h3 className="text-lg font-bold text-slate-700 mb-1">Sin reportes activos</h3>
+          <p className="text-sm">Las solicitudes de soporte aparecerán aquí una vez que se interactúe con la IA.</p>
+        </div>
+      ) : filteredTickets.length > 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
           <table className="w-full text-left text-sm table-fixed min-w-[1024px]">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs uppercase font-bold">
@@ -87,7 +168,7 @@ const ClienteTickets = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {tickets.map(t => (
+              {filteredTickets.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 font-mono font-bold text-blue-600">#{t.id}</td>
                   <td className="px-6 py-4 text-slate-700 font-medium truncate" title={t.cliente?.nombre || t.cliente?.email}>{t.cliente?.nombre || t.cliente?.email || 'Desconocido'}</td>
@@ -111,9 +192,9 @@ const ClienteTickets = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button onClick={() => handleOpenTicket(t)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-xl transition-all shadow-sm inline-flex items-center gap-1 font-bold text-xs mr-2" title="Ver Detalles">
-                      <MessageSquare size={16} /> Detalles
+                      <MessageSquare size={16} />
                     </button>
-                    <button onClick={() => generarComprobanteTicket(t)} className="text-slate-500 bg-slate-50 hover:bg-slate-600 hover:text-white p-2.5 rounded-xl transition-all shadow-sm inline-flex items-center" title="Descargar Comprobante">
+                    <button onClick={() => generarComprobanteTicket(t)} className="text-slate-500 bg-slate-50 hover:bg-slate-600 hover:text-white p-2 rounded-xl transition-all shadow-sm inline-flex items-center" title="Descargar Comprobante">
                       <FileText size={16} />
                     </button>
                   </td>
@@ -124,50 +205,97 @@ const ClienteTickets = () => {
         </div>
       ) : (
         <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 text-center text-slate-400">
-          <Ticket size={56} className="mx-auto mb-4 opacity-40 text-blue-400" />
-          <h3 className="text-lg font-bold text-slate-700 mb-1">Sin reportes activos</h3>
-          <p className="text-sm">Las solicitudes de soporte aparecerán aquí una vez que interactúes con la IA.</p>
+          <Search size={56} className="mx-auto mb-4 opacity-40" />
+          <h3 className="text-lg font-bold text-slate-700 mb-1">No se encontraron resultados</h3>
+          <p className="text-sm">No hay ningún ticket que coincida con "{searchTerm}".</p>
         </div>
       )}
 
       {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         {selectedTicket && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[85vh]">
+             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+               
+               {/* CABECERA DEL MODAL */}
                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                  <div>
                    <h2 className="font-bold text-slate-800 flex items-center gap-2"><Ticket className="text-blue-600" size={20}/> Detalles de Ticket</h2>
-                   <p className="text-xs text-slate-500 mt-1">Folio: TKT-{String(selectedTicket.id).padStart(4, '0')} • Estado: {selectedTicket.status}</p>
+                   <p className="text-xs text-slate-500 mt-1">Folio: TKT-{String(selectedTicket.id).padStart(4, '0')} • Cliente: {selectedTicket.cliente?.nombre || 'General'}</p>
                  </div>
-                 <button onClick={handleCloseModal} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-lg border border-slate-100 shadow-sm transition-colors"><X size={18} /></button>
+                 
+                 {/* CONTROLES DE ESTADO (SOLO ADMIN Y SOPORTE) */}
+                 <div className="flex items-center gap-4">
+                   {canInteract && (
+                     <select 
+                        value={selectedTicket.status} 
+                        onChange={handleStatusChange}
+                        disabled={isUpdating}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none ${
+                          selectedTicket.status === 'ABIERTO' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          selectedTicket.status === 'EN_PROGRESO' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                          'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                     >
+                       <option value="ABIERTO">Abierto</option>
+                       <option value="EN_PROGRESO">En Progreso</option>
+                       <option value="RESUELTO">Resuelto</option>
+                     </select>
+                   )}
+                   <button onClick={handleCloseModal} className="text-slate-400 hover:text-red-500 bg-white p-2 rounded-lg border border-slate-100 shadow-sm transition-colors"><X size={18} /></button>
+                 </div>
                </div>
                
-               <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50 custom-scrollbar space-y-6">
+               <div className="p-6 overflow-y-auto flex-1 bg-slate-50/50 custom-scrollbar space-y-6 flex flex-col">
                  <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5"><AlertTriangle size={14} className="text-amber-500" /> Reporte Original</h3>
                    <p className="text-sm text-slate-700 font-medium whitespace-pre-wrap">{selectedTicket.descripcion}</p>
                  </div>
                  
-                 <div className="space-y-4">
+                 <div className="flex-1 space-y-4">
                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><MessageSquare size={14} className="text-blue-500" /> Respuestas y Seguimiento</h3>
                    {ticketComments.length > 0 ? (
-                     ticketComments.map((comment, idx) => (
-                       <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                         <div className="flex justify-between items-center mb-2">
-                           <span className="text-xs font-bold text-blue-700">{comment.autor?.nombre || comment.autor?.email || 'Soporte Técnico'}</span>
-                           <span className="text-[10px] font-bold text-slate-400">{new Date(comment.fecha_creacion).toLocaleString()}</span>
+                     <div className="space-y-3 mb-4">
+                       {ticketComments.map((comment, idx) => (
+                         <div key={idx} className={`border p-4 rounded-2xl shadow-sm ${comment.autor?.role_id === 3 ? 'bg-white border-slate-200 ml-4' : 'bg-blue-50/50 border-blue-100 mr-4'}`}>
+                           <div className="flex justify-between items-center mb-2">
+                             <span className="text-xs font-bold text-blue-700">{comment.autor?.nombre || 'Soporte Técnico'}</span>
+                             <span className="text-[10px] font-bold text-slate-400">{new Date(comment.fecha_creacion).toLocaleString()}</span>
+                           </div>
+                           <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{comment.contenido}</p>
                          </div>
-                         <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{comment.contenido}</p>
-                       </div>
-                     ))
+                       ))}
+                     </div>
                    ) : (
-                     <div className="text-center py-6 text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                     <div className="text-center py-6 text-slate-400 border border-dashed border-slate-200 rounded-2xl bg-white mb-4">
                        <MessageSquare size={24} className="mx-auto mb-2 opacity-30" />
                        <p className="text-sm font-medium">Aún no hay comentarios en este ticket.</p>
                      </div>
                    )}
                  </div>
                </div>
+
+               {/* ZONA DE RESPUESTA (SOLO ADMIN Y SOPORTE) */}
+               {canInteract && (
+                 <div className="p-4 border-t border-slate-100 bg-white shrink-0">
+                   <div className="flex items-end gap-3">
+                     <textarea 
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none resize-none"
+                        rows="2"
+                        placeholder="Escribe una respuesta técnica o actualización de estado..."
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                     ></textarea>
+                     <button 
+                        onClick={handleAddComment}
+                        disabled={isUpdating || !newComment.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white p-3.5 rounded-xl shadow-md transition-all flex items-center justify-center shrink-0"
+                     >
+                       {isUpdating ? <RefreshCw size={20} className="animate-spin" /> : <Send size={20} />}
+                     </button>
+                   </div>
+                 </div>
+               )}
+               
              </motion.div>
           </motion.div>
         )}

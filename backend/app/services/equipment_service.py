@@ -58,10 +58,35 @@ class EquipmentService:
                     detail="Error al guardar la evidencia fotográfica."
                 )
 
-        # 1. Actualizamos el status del equipo
-        equipment.status = StatusEquipo.INSTALADO
+        # ==========================================================
+        # 🔥 NUEVA LÓGICA: DETECCIÓN DE DAÑOS O APERTURA
+        # ==========================================================
+        estado_empaque_upper = reception_data.estado_empaque.strip().upper()
+        # Si no encendió, o si el cliente reportó que venía abierto/dañado/roto
+        llegó_dañado = (
+            not reception_data.encendio_correctamente or 
+            any(palabra in estado_empaque_upper for palabra in ["ABIERTO", "DAÑADO", "ROTO", "GOLPEADO", "MAL"])
+        )
 
-        # 2. Creamos el registro de Seguimiento de Instalación
+        if llegó_dañado:
+            equipment.status = StatusEquipo.FALLA_REPORTADA
+            evento_log = "RECEPCION_CON_FALLA"
+        else:
+            equipment.status = StatusEquipo.INSTALADO
+            evento_log = "INSTALACION_CLIENTE"
+
+            # 3. Activamos la garantía (SOLO SI EL EQUIPO ESTÁ BIEN)
+            fecha_actual = date.today()
+            garantia = GarantiaLicencia(
+                equipo_id=equipment.id,
+                tipo=TipoGarantia.HARDWARE,
+                fecha_inicio=fecha_actual,
+                fecha_vencimiento=fecha_actual + timedelta(days=365),
+                is_active=True
+            )
+            db.add(garantia)
+
+        # 4. Creamos el registro de Seguimiento de Instalación
         seguimiento = SeguimientoInstalacion(
             equipo_id=equipment.id,
             fecha_recepcion=reception_data.fecha_recepcion.date(),
@@ -73,32 +98,19 @@ class EquipmentService:
         )
         db.add(seguimiento)
 
-        # 3. Activamos la garantía por defecto
-        fecha_actual = date.today()
-        garantia = GarantiaLicencia(
-            equipo_id=equipment.id,
-            tipo=TipoGarantia.HARDWARE,
-            fecha_inicio=fecha_actual,
-            fecha_vencimiento=fecha_actual + timedelta(days=365),
-            is_active=True
-        )
-        db.add(garantia)
-
-        # 4. Registramos el log del evento
+        # 5. Registramos el log del evento
         new_log = EquipmentLog(
             equipo_id=equipment.id,
             usuario_id=current_user.id,
-            evento="INSTALACION_CLIENTE",
-            detalles={"observaciones": reception_data.observaciones, "estado_anterior": "EN_TRANSITO"},
+            evento=evento_log,
+            detalles={"observaciones": reception_data.observaciones, "llegó_dañado": llegó_dañado},
             fecha=datetime.utcnow()
         )
         db.add(new_log)
         
-        # Guardamos todos los cambios en cascada
         db.commit()
         db.refresh(equipment)
 
-        # HEMOS ELIMINADO LOS WEBSOCKETS DE AQUÍ PARA QUE NO CORTEN EL EVENT LOOP
         return equipment
 
     def create_equipment(self, db: Session, equipment_data: EquipmentCreate) -> Equipo:
@@ -120,10 +132,7 @@ class EquipmentService:
             data.pop("estado")
 
         equipment_model = Equipo(**data)
-        created = self.repo.create_equipment_from_model(db, equipment_model=equipment_model)
-
-        # HEMOS ELIMINADO LOS WEBSOCKETS DE AQUÍ PARA QUE NO CORTEN EL EVENT LOOP
-        return created
+        return self.repo.create_equipment_from_model(db, equipment_model=equipment_model)
 
     def get_all_equipments(self, db: Session, skip: int = 0, limit: int = 100) -> list[Equipo]:
         return self.repo.get_all(db, skip=skip, limit=limit)
@@ -155,12 +164,7 @@ class EquipmentService:
         return self.repo.update(db, db_obj=equipment, obj_in=update_data)
 
     def get_equipment_history(self, db: Session, equipment_id: int) -> list:
-        equipment = self.repo.get_by_id(db, equipment_id)
-        if not equipment:
-            raise HTTPException(
-                status_code=http_status.HTTP_404_NOT_FOUND,
-                detail=f"Equipo con ID {equipment_id} no encontrado."
-            )
+        equipment = self.get_equipment_by_id(db, equipment_id)
         return equipment.logs
 
     def get_warranty_alerts(self, db: Session, days_threshold: int = 30) -> list[Equipo]:
@@ -172,3 +176,7 @@ class EquipmentService:
             GarantiaLicencia.fecha_vencimiento >= now,
             GarantiaLicencia.fecha_vencimiento <= max_expiration_date
         ).all()
+    
+    def delete_equipment(self, db: Session, equipment_id: int) -> None:
+        equipment = self.get_equipment_by_id(db, equipment_id)
+        self.repo.delete(db, db_obj=equipment)

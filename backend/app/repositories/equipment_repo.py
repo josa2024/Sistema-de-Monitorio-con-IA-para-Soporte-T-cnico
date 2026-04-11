@@ -40,3 +40,28 @@ class EquipmentRepository:
         db.commit()
         db.refresh(db_obj)
         return db_obj
+    
+    def delete(self, db: Session, db_obj: Equipo) -> None:
+        """Elimina un equipo de la base de datos."""
+        from app.models.equipment_models import EquipmentLog, GarantiaLicencia
+        from app.models.ticket import Ticket, TicketLog, ComentarioTicket, TicketAttachment
+        from app.models.license_models import License
+        
+        # Obtenemos los IDs de los tickets asociados para eliminar sus dependencias (hijos)
+        tickets = db.query(Ticket.id).filter(Ticket.equipo_id == db_obj.id).all()
+        ticket_ids = [t[0] for t in tickets]
+        
+        if ticket_ids:
+            db.query(TicketLog).filter(TicketLog.ticket_id.in_(ticket_ids)).delete(synchronize_session=False)
+            db.query(ComentarioTicket).filter(ComentarioTicket.ticket_id.in_(ticket_ids)).delete(synchronize_session=False)
+            db.query(TicketAttachment).filter(TicketAttachment.ticket_id.in_(ticket_ids)).delete(synchronize_session=False)
+
+        # Eliminamos manualmente los registros asociados para evitar excepciones NotNullViolation
+        # por falta de cascade="all, delete-orphan" en los modelos
+        db.query(EquipmentLog).filter(EquipmentLog.equipo_id == db_obj.id).delete(synchronize_session=False)
+        db.query(GarantiaLicencia).filter(GarantiaLicencia.equipo_id == db_obj.id).delete(synchronize_session=False)
+        db.query(Ticket).filter(Ticket.equipo_id == db_obj.id).delete(synchronize_session=False)
+        db.query(License).filter(License.equipment_id == db_obj.id).delete(synchronize_session=False)
+        
+        db.delete(db_obj)
+        db.commit()
