@@ -68,6 +68,7 @@ Thumbs.db
 celerybeat-schedule
 celerybeat-schedule.db
 celerybeat-schedule.*
+backend/celerybeat-schedule
 
 # Bases de datos locales para pruebas
 *.sqlite3
