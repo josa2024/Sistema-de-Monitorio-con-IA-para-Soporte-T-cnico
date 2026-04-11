@@ -51,6 +51,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Montamos el código fuente para que el hot-reload funcione
       - ./backend:/home/app
@@ -85,6 +87,8 @@ services:
         condition: service_healthy
       backend:
         condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - innotrev-net
 

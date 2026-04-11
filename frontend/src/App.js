@@ -7,7 +7,7 @@ import Licencias from './components/Licencias';
 import HistorialUsuarios from './components/HistorialUsuarios'; 
 import InnotrevWeb from './components/InnotrevWeb'; 
 import ClienteTickets from './components/ClienteTickets';
-import Garantias from './components/Garantias';
+import ClienteGarantias from './components/ClienteGarantias'; // 👈 ¡CAMBIO AQUÍ!
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
@@ -157,7 +157,7 @@ function App() {
             {activeTab === 'inventario' && (isAdmin || isVentas) && <Inventario />}
             {activeTab === 'historial' && isAdmin && <HistorialUsuarios />}
             {activeTab === 'polizas' && (isAdmin || isTecnico || isVentas) && <Licencias />}
-            {activeTab === 'cliente_garantias' && (isAdmin || isTecnico || isVentas) && <Garantias />}
+            {activeTab === 'cliente_garantias' && (isAdmin || isTecnico || isVentas) && <ClienteGarantias />} {/* 👈 ¡CAMBIO AQUÍ! */}
             {activeTab === 'cliente_tickets' && (isAdmin || isTecnico || isVentas) && <ClienteTickets />}
           </motion.div>
         </AnimatePresence>

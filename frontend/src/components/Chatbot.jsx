@@ -30,11 +30,18 @@ const Chatbot = ({
   selectedProduct = null // NUEVA PROP: Recibe el producto del catálogo
 }) => {
   
-  const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const [showCasualForm, setShowCasualForm] = useState(false);
   const [casualData, setCasualData] = useState({ nombre: '', contacto: '', equipo: '' });
 
-  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: "smooth"
+      });
+    }
+  };
   useEffect(() => { scrollToBottom(); }, [messages, loading, showTicketButton, showCasualForm]);
 
   // NUEVO EFECTO: Ajustar el mensaje de bienvenida si viene del catálogo
@@ -149,14 +156,15 @@ const Chatbot = ({
               } 
               else if (data.type === 'chunk') {
                 botText += data.text;
+                const textToSet = botText;
                 if (isFirstChunk) {
                   setLoading(false);
                   isFirstChunk = false;
-                  setMessages(prev => [...prev, { role: 'bot', text: botText }]);
+                  setMessages(prev => [...prev, { role: 'bot', text: textToSet }]);
                 } else {
                   setMessages(prev => {
                     const newMsgs = [...prev];
-                    newMsgs[newMsgs.length - 1].text = botText;
+                    newMsgs[newMsgs.length - 1].text = textToSet;
                     return newMsgs;
                   });
                 }
@@ -312,7 +320,7 @@ const Chatbot = ({
       </AnimatePresence>
 
       {/* ÁREA DE CHAT */}
-      <div className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto space-y-6 custom-scrollbar bg-[#f8fafc] z-10">
+      <div ref={chatContainerRef} className="flex-1 min-h-0 p-4 sm:p-6 overflow-y-auto space-y-6 custom-scrollbar bg-[#f8fafc] z-10">
         <AnimatePresence>
           {messages.map((msg, index) => (
             <motion.div key={index} initial={{ opacity: 0, y: 15, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} layout className={`flex gap-3 items-end ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -454,7 +462,6 @@ const Chatbot = ({
             </motion.div>
           )}
         </AnimatePresence>
-        <div ref={messagesEndRef} className="h-4" />
       </div>
 
       <div className="p-4 bg-white/90 backdrop-blur-md border-t border-slate-200 z-20 shrink-0 shadow-[0_-10px_30px_rgba(0,0,0,0.03)]">
