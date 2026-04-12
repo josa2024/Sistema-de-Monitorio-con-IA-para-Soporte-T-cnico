@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 # Importamos las llaves de seguridad
-from app.api.deps import get_db, get_current_active_user, require_admin
+from app.api.deps import get_db, get_current_active_user, require_admin, require_admin_or_ventas
 from app.models.user_models import User
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.services.user_service import user_service 
@@ -11,11 +11,11 @@ from app.models.roles import RoleEnum
 
 router = APIRouter()
 
-@router.get("/", response_model=List[UserResponse], dependencies=[Depends(require_admin)])
+@router.get("/", response_model=List[UserResponse], dependencies=[Depends(require_admin_or_ventas)])
 def get_all_users(db: Session = Depends(get_db)):
     """
     Obtiene una lista de todos los usuarios.
-    Accesible solo para usuarios con rol ADMIN.
+    Accesible para usuarios con rol ADMIN y VENTAS.
     """
     return user_service.get_all_users(db)
 
