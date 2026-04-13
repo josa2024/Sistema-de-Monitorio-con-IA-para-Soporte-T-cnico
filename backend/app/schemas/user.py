@@ -7,24 +7,24 @@ class UserBase(BaseModel):
     is_active: Optional[bool] = True
     nombre: Optional[str] = None
 
-# --- Esquema para Crear/Registrar (Input) ---
-# Este es el que te faltaba y causaba el error
+# --- Esquema para Registro Externo (HU-01) ---
 class ClientRegister(BaseModel):
     email: EmailStr
     password: str
     nombre: str
-    # Puedes agregar más campos si la HU-01 lo requiere (ej. teléfono)
 
+# --- Esquema para Creación Administrativa (Input) ---
 class UserCreate(UserBase):
     password: str
-    role_id: Optional[int] = None
+    # Aceptamos el nombre del rol como string (ej: "TECNICO")
+    role_id: Optional[str] = None 
 
-# --- Esquema para Actualizar (Input) ---
+# --- Esquema para Actualización (Input) ---
 class UserUpdate(UserBase):
     password: Optional[str] = None
-    role_id: Optional[int] = None
+    role_id: Optional[str] = None 
 
-# --- Esquema para Respuesta (Output) ---
+# --- Esquemas para Respuesta (Output) ---
 class RoleBase(BaseModel):
     id: int
     nombre: str
@@ -38,5 +38,4 @@ class UserResponse(UserBase):
     role: Optional[RoleBase] = None
 
     class Config:
-        # Permite a Pydantic leer datos desde los modelos ORM de SQLAlchemy
         from_attributes = True

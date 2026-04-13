@@ -17,7 +17,8 @@ const HistorialUsuarios = () => {
     nombre: '',
     email: '',
     password: '',
-    role_id: 3 // Por defecto: 1=ADMIN, 2=VENTAS, 3=CLIENTE, 4=TECNICO
+    // 🔥 CAMBIO 1: El rol por defecto ahora es un String, no un ID numérico
+    role_id: 'CLIENTE' 
   });
 
   const fetchAllData = async () => {
@@ -66,7 +67,8 @@ const HistorialUsuarios = () => {
 
       alert("✅ Usuario creado exitosamente");
       setIsModalOpen(false);
-      setFormData({ nombre: '', email: '', password: '', role_id: 3 });
+      // 🔥 CAMBIO 2: Resetear con el rol String por defecto
+      setFormData({ nombre: '', email: '', password: '', role_id: 'CLIENTE' });
       fetchAllData(); // Recargamos la lista
     } catch (error) {
       alert("❌ " + error.message);
@@ -120,11 +122,13 @@ const HistorialUsuarios = () => {
     return events.sort((a, b) => new Date(b.date) - new Date(a.date));
   };
 
-  const getRoleInfo = (roleName, roleId) => {
-    const name = roleName || (roleId === 1 ? 'ADMIN' : roleId === 2 ? 'VENTAS' : roleId === 4 ? 'TECNICO' : 'CLIENTE');
+  // 🔥 CAMBIO 3: Función de estilos simplificada para usar solo Strings
+  const getRoleInfo = (roleName) => {
+    const name = roleName || 'CLIENTE'; // Valor seguro de respaldo
     if (name === 'ADMIN') return { label: 'Administrador', icon: <ShieldCheck size={10}/>, style: 'bg-indigo-100 text-indigo-700 border-indigo-200' };
     if (name === 'VENTAS') return { label: 'Ventas', icon: <Briefcase size={10}/>, style: 'bg-amber-100 text-amber-700 border-amber-200' };
-    if (name === 'TECNICO') return { label: 'Soporte Técnico', icon: <User size={10}/>, style: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+    if (name === 'TECNICO' || name === 'SOPORTE') return { label: 'Soporte Técnico', icon: <User size={10}/>, style: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+    
     return { label: 'Cliente Activo', icon: <User size={10}/>, style: 'bg-slate-100 text-slate-600 border-slate-200' };
   };
 
@@ -175,7 +179,7 @@ const HistorialUsuarios = () => {
                </div>
             ) : filteredUsers.length > 0 ? (
               filteredUsers.map(u => {
-                const roleInfo = getRoleInfo(u.role?.nombre, u.role_id);
+                const roleInfo = getRoleInfo(u.role?.nombre); // 🔥 CAMBIO 4: Pasamos solo el string del rol
                 const isSelected = selectedClient?.id === u.id;
                 
                 return (
@@ -219,9 +223,9 @@ const HistorialUsuarios = () => {
                   <div className="flex-1 pt-1">
                     <div className="flex flex-col md:flex-row md:items-center gap-3 mb-3">
                       <h2 className="font-black text-2xl md:text-3xl text-[#0b1437]">{selectedClient.nombre}</h2>
-                      <span className={`text-[10px] font-black px-3 py-1 rounded-lg border uppercase tracking-widest flex items-center gap-1.5 w-max ${getRoleInfo(selectedClient.role?.nombre, selectedClient.role_id).style}`}>
-                        {getRoleInfo(selectedClient.role?.nombre, selectedClient.role_id).icon}
-                        {getRoleInfo(selectedClient.role?.nombre, selectedClient.role_id).label}
+                      <span className={`text-[10px] font-black px-3 py-1 rounded-lg border uppercase tracking-widest flex items-center gap-1.5 w-max ${getRoleInfo(selectedClient.role?.nombre).style}`}>
+                        {getRoleInfo(selectedClient.role?.nombre).icon}
+                        {getRoleInfo(selectedClient.role?.nombre).label}
                       </span>
                     </div>
                     <div className="flex flex-col sm:flex-row flex-wrap gap-x-6 gap-y-3">
@@ -327,11 +331,16 @@ const HistorialUsuarios = () => {
 
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Nivel de Acceso (Rol)</label>
-                  <select value={formData.role_id} onChange={e => setFormData({...formData, role_id: parseInt(e.target.value)})} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-black text-[#0b1437] cursor-pointer">
-                    <option value={3}>CLIENTE (Acceso a portal externo)</option>
-                    <option value={2}>VENTAS (Gestión de inventario y clientes)</option>
-                    <option value={4}>TECNICO DE SOPORTE (Atención de tickets)</option>
-                    <option value={1}>ADMINISTRADOR (Control total)</option>
+                  {/* 🔥 CAMBIO 5: Quitamos el parseInt() y actualizamos los values con los nombres del Enum */}
+                  <select 
+                    value={formData.role_id} 
+                    onChange={e => setFormData({...formData, role_id: e.target.value})} 
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-black text-[#0b1437] cursor-pointer"
+                  >
+                    <option value="CLIENTE">CLIENTE (Acceso a portal externo)</option>
+                    <option value="VENTAS">VENTAS (Gestión de inventario y clientes)</option>
+                    <option value="TECNICO">TECNICO DE SOPORTE (Atención de tickets)</option>
+                    <option value="ADMIN">ADMINISTRADOR (Control total)</option>
                   </select>
                 </div>
 
