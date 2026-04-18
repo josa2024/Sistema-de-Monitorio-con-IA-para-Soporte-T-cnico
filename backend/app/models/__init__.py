@@ -5,6 +5,7 @@ from .equipment_models import Equipo, SeguimientoInstalacion, GarantiaLicencia, 
 from .monitoring_models import ReporteAnomalias 
 from .log import LogEventos
 from .ticket import Ticket, ComentarioTicket, TicketLog, TicketAttachment
+from .equipment_models import LicenciaComment
 from .license_models import License
 
 __all__ = [
@@ -21,5 +22,5 @@ __all__ = [
     "ComentarioTicket",
     "TicketLog",
     "TicketAttachment",
-    "License"
+    "LicenciaComment"
 ]

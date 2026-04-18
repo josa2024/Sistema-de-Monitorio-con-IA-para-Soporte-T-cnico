@@ -35,3 +35,4 @@ class User(Base):
     
     # CORRECCIÓN: Actualizamos la relación a ComentarioTicket
     comentarios = relationship("app.models.ticket.ComentarioTicket", back_populates="autor")
+    licencia_comentarios = relationship("app.models.equipment_models.LicenciaComment", back_populates="autor")

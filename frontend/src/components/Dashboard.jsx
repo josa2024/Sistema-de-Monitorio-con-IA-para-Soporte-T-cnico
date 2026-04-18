@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, AlertTriangle, CheckCircle2, Server, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Bot, Video } from 'lucide-react';
+import { Activity, CheckCircle2, Server, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Bot, Video, LayoutDashboard, Cpu, ShieldAlert } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuthHeaders } from '../services/api';
-
 
 const Dashboard = () => {
   const [equipmentList, setEquipmentList] = useState([]);
@@ -33,11 +32,11 @@ const Dashboard = () => {
 
   const getPriorityBadge = (priority) => {
     switch (priority) {
-      case 'CRITICA': return 'bg-red-100 text-red-700 border-red-200 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.4)]';
+      case 'CRITICA': return 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)] border-red-600 animate-pulse';
       case 'ALTA': return 'bg-orange-100 text-orange-700 border-orange-200';
       case 'MEDIA': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'BAJA': return 'bg-slate-100 text-slate-700 border-slate-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+      case 'BAJA': return 'bg-slate-100 text-slate-600 border-slate-200';
+      default: return 'bg-slate-100 text-slate-600 border-slate-200';
     }
   };
 
@@ -45,7 +44,6 @@ const Dashboard = () => {
     setIsLoading(true);
     const headers = getAuthHeaders();
 
-    // 1. CARGAR EQUIPOS SEGURAMENTE
     try {
       const eqResponse = await fetch(`http://localhost:8000/api/v1/equipo/?t=${Date.now()}`, { headers });
       if (eqResponse.ok) { 
@@ -54,14 +52,12 @@ const Dashboard = () => {
       }
     } catch (error) { console.warn("Aviso: No se pudieron cargar los equipos."); }
 
-    // 2. CARGAR LICENCIAS SEGURAMENTE (Si falla, no rompe el dashboard)
     try {
       const licResponse = await fetch(`http://localhost:8000/api/v1/licencias/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
       if (licResponse.ok) setExpiringLicenses(await licResponse.json());
       else if (licResponse.status === 401) console.error("Token inválido o expirado");
     } catch (error) { console.warn("Aviso: El endpoint de licencias devolvió error (CORS/404)."); }
 
-    // 3. CARGAR TICKETS SEGURAMENTE
     try {
       const tktResponse = await fetch(`http://localhost:8000/api/v1/tickets/?t=${Date.now()}`, { headers });
       if (tktResponse.ok) {
@@ -82,9 +78,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchData();
-    // CORRECCIÓN: Agregamos el /ws/ a la URL y pasamos el token por parámetro para el Websocket
     const token = localStorage.getItem('token');
-    if (!token) return; // No conectar si no hay token
+    if (!token) return;
 
     let socket;
     let reconnectAttempts = 0;
@@ -92,18 +87,10 @@ const Dashboard = () => {
 
     const initWebSocket = () => {
       if (!shouldReconnect) return;
-
       socket = new WebSocket(`ws://localhost:8000/api/v1/ws/tickets?token=${token}`);
-
-      socket.onopen = () => {
-        console.log("WebSocket tickets conectado");
-        reconnectAttempts = 0;
-        socket.send("ping");
-      };
-
+      socket.onopen = () => { console.log("WebSocket tickets conectado"); reconnectAttempts = 0; socket.send("ping"); };
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log("WebSocket message received:", data);
         if (data.evento === "NUEVO_TICKET") {
           setLiveAlert(`¡ALERTA IA! Ticket TKT-${String(data.ticket_id).padStart(4, '0')}`);
           setTimeout(() => setLiveAlert(null), 6000);
@@ -125,10 +112,8 @@ const Dashboard = () => {
           fetchData();
         }
       };
-      socket.onclose = (event) => {
-        console.warn("WebSocket tickets cerrado:", event.code, event.reason);
+      socket.onclose = () => {
         if (!shouldReconnect) return;
-
         const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts));
         reconnectAttempts = Math.min(reconnectAttempts + 1, 10);
         setTimeout(initWebSocket, delay);
@@ -136,13 +121,7 @@ const Dashboard = () => {
     };
 
     initWebSocket();
-
-    return () => {
-      shouldReconnect = false;
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.close();
-      }
-    };
+    return () => { shouldReconnect = false; if (socket && socket.readyState === WebSocket.OPEN) { socket.close(); } };
   }, [fetchData]);
 
   const handleOpenTicket = async (ticket) => {
@@ -163,10 +142,7 @@ const Dashboard = () => {
       const headers = getAuthHeaders();
       await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/assign`, { 
         method: 'PATCH', 
-        headers: { 
-          ...headers,
-          'Content-Type': 'application/json'
-        },
+        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ tecnico_id: 1 })
       });
       await fetchData(); 
@@ -175,96 +151,47 @@ const Dashboard = () => {
   };
 
   const handleResolveTicket = async () => {
-    if (!selectedTicket?.id) {
-      console.warn('[Resolver] No hay ticket seleccionado');
-      return;
-    }
-
+    if (!selectedTicket?.id) return;
     setIsProcessing(true);
     const headers = getAuthHeaders();
-
     try {
       const response = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}`, {
-        method: 'PATCH',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ estado: 'RESUELTO' })
+        method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ estado: 'RESUELTO' })
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Error actualizando estado (resolve): ${response.status} - ${errorText}`);
-      }
-
+      if (!response.ok) throw new Error(`Error actualizando estado`);
       await fetchData();
       handleCloseModal();
     } catch (error) {
-      console.error('[Resolver] fetch error:', error);
-      alert('No se pudo resolver el ticket. Revisa la consola y el backend.');
-    } finally {
-      setIsProcessing(false);
-    }
+      alert('No se pudo resolver el ticket.');
+    } finally { setIsProcessing(false); }
   };
 
   const handleScheduleCall = async () => {
-    if (!selectedTicket?.id || !scheduledDate) {
-      console.warn('[Horario] Ticket no seleccionado o fecha no válida');
-      return;
-    }
-
+    if (!selectedTicket?.id || !scheduledDate) return;
     setIsProcessing(true);
     const token = localStorage.getItem('token') || '';
     const fechaIso = new Date(scheduledDate).toISOString();
-
     const apiBase = 'http://localhost:8000/api/v1';
 
     try {
       const updateResponse = await fetch(`${apiBase}/tickets/${selectedTicket.id}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ fecha_agendada: fechaIso })
+        method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha_agendada: fechaIso })
       });
+      if (!updateResponse.ok) throw new Error(`Error actualizando ticket`);
 
-      if (!updateResponse.ok) {
-        const errorText = await updateResponse.text();
-        throw new Error(`Error actualizando ticket: ${updateResponse.status} - ${errorText}`);
-      }
-
-      const commentPayload = {
-        contenido: `Videollamada de soporte agendada para el ${new Date(fechaIso).toLocaleString()}`
-      };
+      const commentPayload = { contenido: `Videollamada de soporte agendada para el ${new Date(fechaIso).toLocaleString()}` };
       const commentResponse = await fetch(`${apiBase}/tickets/${selectedTicket.id}/comments`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(commentPayload)
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(commentPayload)
       });
-
-      if (!commentResponse.ok) {
-        const errorText = await commentResponse.text();
-        throw new Error(`Error creando comentario: ${commentResponse.status} - ${errorText}`);
-      }
+      if (!commentResponse.ok) throw new Error(`Error creando comentario`);
 
       await fetchData();
       setSelectedTicket({ ...selectedTicket, fecha_agendada: fechaIso });
-
-      const res = await fetch(`${apiBase}/tickets/${selectedTicket.id}/comments`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(`${apiBase}/tickets/${selectedTicket.id}/comments`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) setComments(await res.json());
     } catch (error) {
-      console.error('[Horario] fetch error:', error);
-      alert('Error al agendar la videollamada. Revisa consola o servidor para más detalles.');
-    } finally {
-      setIsProcessing(false);
-    }
+      alert('Error al agendar la videollamada.');
+    } finally { setIsProcessing(false); }
   };
 
   const handleAddComment = async () => {
@@ -273,110 +200,156 @@ const Dashboard = () => {
     try {
       const headers = getAuthHeaders();
       const response = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ contenido: newComment })
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ contenido: newComment })
       });
       if (response.ok) {
         setNewComment('');
         const res = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/comments`, { headers });
         if (res.ok) setComments(await res.json());
       }
-    } catch (error) {
-      console.error('[AddComment] fetch error:', error);
-      alert('Error al agregar el comentario. Revisa consola.');
-    } finally {
-      setIsProcessing(false);
-    }
+    } catch (error) { alert('Error al agregar el comentario.'); } finally { setIsProcessing(false); }
   };
 
-  if (isLoading) return <div className="flex flex-col items-center justify-center h-full text-slate-500"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0b1437] mb-4"></div><p>Sincronizando Módulos...</p></div>;
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center h-full min-h-screen text-blue-600 bg-slate-50">
+      <Cpu size={48} className="animate-pulse mb-4" />
+      <p className="font-black tracking-widest uppercase text-sm">Iniciando Centro de Comando...</p>
+    </div>
+  );
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto space-y-8 relative pb-10">
+    <div className="absolute inset-0 p-6 md:p-8 max-w-[1600px] mx-auto w-full flex flex-col gap-6 overflow-y-auto custom-scrollbar bg-slate-50/50">
       
+      {/* TOAST NOTIFICATIONS (WebSockets) */}
       <AnimatePresence>
         {liveAlert && (
-          <motion.div initial={{ opacity: 0, y: -50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: -50, x: '-50%' }} className="fixed top-6 left-1/2 z-50 bg-[#0b1437] text-white border border-blue-500/50 px-8 py-3 rounded-full shadow-[0_10px_40px_rgba(11,20,55,0.4)] flex items-center gap-4">
-            <span className="relative flex h-4 w-4"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span></span>
-            <span className="font-black text-sm tracking-widest uppercase">{liveAlert}</span>
+          <motion.div initial={{ opacity: 0, y: -50, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: -50, x: '-50%' }} className="fixed top-6 left-1/2 z-[9999] bg-[#0b1437] text-white border border-blue-500/50 px-8 py-3.5 rounded-full shadow-[0_10px_40px_rgba(11,20,55,0.4)] flex items-center gap-4">
+            <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span>
+            <span className="font-black text-xs tracking-widest uppercase">{liveAlert}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div><h1 className="text-3xl font-black text-[#0b1437]">Dashboard Analítico</h1><p className="text-slate-500 text-sm mt-1 font-medium">Supervisión integral de Hardware y diagnósticos IA.</p></div>
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+        <div>
+          <h1 className="text-3xl font-black text-[#0b1437] flex items-center gap-3">
+            <LayoutDashboard className="text-blue-600" size={32} /> Dashboard Analítico
+          </h1>
+          <p className="text-slate-500 mt-2 font-medium">Centro de comando: Supervisión integral de Hardware y diagnósticos IA en tiempo real.</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* TARJETAS DE MÉTRICAS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 shrink-0">
         {[
-          { title: "Monitoreados", val: equipmentList.length, icon: Server, color: "text-blue-600", bg: "bg-blue-50" },
-          { title: "Tickets Abiertos", val: ticketsList.length, icon: Ticket, color: "text-amber-600", bg: "bg-amber-50" },
-          { title: "Resolución", val: "94%", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { title: "Prioridad Alta", val: ticketsList.filter(t => ['CRITICA','ALTA'].includes(t.prioridad)).length, icon: AlertTriangle, color: "text-red-600", bg: "bg-red-50", bounce: true }
+          { title: "Equipos Monitoreados", val: equipmentList.length, icon: Server, color: "text-blue-600", bg: "bg-blue-50" },
+          { title: "Tickets en Cola", val: ticketsList.length, icon: Ticket, color: "text-amber-600", bg: "bg-amber-50" },
+          { title: "Tasa de Resolución", val: "94%", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+          { title: "Alertas Críticas", val: ticketsList.filter(t => ['CRITICA','ALTA'].includes(t.prioridad)).length, icon: ShieldAlert, color: "text-red-600", bg: "bg-red-50", bounce: true }
         ].map((c, i) => (
-          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-lg transition-all cursor-default">
-            <div><p className="text-slate-400 text-[11px] font-bold uppercase tracking-wider mb-1">{c.title}</p><p className={`text-3xl font-black ${i === 3 ? 'text-red-600' : 'text-[#0b1437]'}`}>{c.val}</p></div>
-            <div className={`w-14 h-14 ${c.bg} rounded-2xl flex items-center justify-center ${c.color} group-hover:scale-110 transition-transform ${c.bounce ? 'animate-pulse' : ''}`}><c.icon size={28} /></div>
+          <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all hover:-translate-y-1">
+            <div>
+              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">{c.title}</p>
+              <p className={`text-3xl font-black ${i === 3 && c.val > 0 ? 'text-red-600' : 'text-[#0b1437]'}`}>{c.val}</p>
+            </div>
+            <div className={`w-14 h-14 ${c.bg} rounded-2xl flex items-center justify-center ${c.color} group-hover:scale-110 transition-transform ${c.bounce && c.val > 0 ? 'animate-pulse' : ''}`}><c.icon size={28} /></div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+      {/* 🔥 ÁREA PRINCIPAL CON SCROLLS INDEPENDIENTES ('flex-1 min-h-0') */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 min-h-0">
         
-        <div className="xl:col-span-1 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[700px] overflow-hidden">
-          <div className="p-6 border-b border-slate-100 bg-[#0b1437] text-white flex justify-between items-center">
-            <h2 className="font-bold flex items-center gap-2 tracking-wide"><Activity size={18} className="text-blue-400" /> Cola de Atención</h2>
+        {/* PANEL IZQUIERDO: COLA DE ATENCIÓN */}
+        <div className="xl:col-span-4 bg-white rounded-[2rem] shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden">
+          <div className="p-6 border-b border-slate-100 bg-[#0b1437] text-white flex justify-between items-center shrink-0">
+            <h2 className="font-bold flex items-center gap-2 tracking-widest uppercase text-sm"><Activity size={18} className="text-blue-400" /> Cola de Atención</h2>
             <span className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full">{ticketsList.length}</span>
           </div>
-          <div className="p-5 flex-1 overflow-y-auto space-y-4 custom-scrollbar bg-slate-50/50">
+          
+          <div className="p-4 flex-1 overflow-y-auto space-y-3 custom-scrollbar bg-slate-50/50">
             <AnimatePresence>
               {ticketsList.length > 0 ? ticketsList.map(ticket => (
-                <motion.div key={ticket.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} whileHover={{ scale: 1.02 }} onClick={() => handleOpenTicket(ticket)} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-2 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="flex justify-between items-start mb-3"><span className="text-xs font-black tracking-wider text-slate-400 group-hover:text-blue-600 transition-colors">TKT-{String(ticket.id).padStart(4, '0')}</span><span className={`px-2.5 py-1 rounded text-[10px] font-black tracking-wider uppercase border ${getPriorityBadge(ticket.prioridad)}`}>{ticket.prioridad}</span></div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Cliente: {ticket.cliente?.nombre || ticket.cliente?.email || 'Desconocido'}</p>
-                  <h3 className="font-bold text-[#0b1437] text-sm mb-1.5 line-clamp-1">{ticket.titulo}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">{ticket.descripcion}</p>
-                  <div className="flex justify-between items-center"><span className={`text-[10px] font-bold uppercase tracking-wider ${ticket.status === 'EN_PROGRESO' ? 'text-blue-600' : 'text-slate-400'}`}>{ticket.status}</span><button className="text-blue-600 font-bold flex items-center gap-1 group-hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg text-xs">Revisar <ArrowRight size={14} /></button></div>
+                <motion.div key={ticket.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} onClick={() => handleOpenTicket(ticket)} className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer group relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  
+                  <div className="flex justify-between items-start mb-3">
+                    <span className="text-[10px] font-black tracking-widest text-slate-400 group-hover:text-blue-600 transition-colors">TKT-{String(ticket.id).padStart(4, '0')}</span>
+                    <span className={`px-2.5 py-1 rounded-md text-[9px] font-black tracking-wider uppercase border ${getPriorityBadge(ticket.prioridad)}`}>{ticket.prioridad}</span>
+                  </div>
+                  
+                  <h3 className="font-black text-[#0b1437] text-sm mb-1 line-clamp-1">{ticket.titulo}</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1"><User size={12}/> {ticket.cliente?.nombre || ticket.cliente?.email || 'Desconocido'}</p>
+                  
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
+                    <p className="text-xs text-slate-600 line-clamp-2 font-medium leading-relaxed">{ticket.descripcion}</p>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${ticket.status === 'EN_PROGRESO' ? 'text-blue-600 bg-blue-50 px-2 py-1 rounded' : 'text-slate-400'}`}>{ticket.status.replace('_', ' ')}</span>
+                    <button className="text-blue-600 font-black flex items-center gap-1 group-hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg text-xs transition-colors group-hover:bg-blue-100">Abrir Caso <ArrowRight size={14} /></button>
+                  </div>
                 </motion.div>
-              )) : <div className="text-center py-20"><CheckCircle2 size={48} className="mx-auto text-emerald-400 opacity-50 mb-3" /><p className="text-sm font-medium text-slate-500">Bandeja despejada</p></div>}
+              )) : (
+                <div className="text-center py-20 h-full flex flex-col items-center justify-center">
+                  <CheckCircle2 size={48} className="mx-auto text-emerald-400 opacity-50 mb-3" />
+                  <p className="text-sm font-black text-slate-500 uppercase tracking-widest">Bandeja Despejada</p>
+                  <p className="text-xs text-slate-400 mt-1">Todos los tickets han sido atendidos.</p>
+                </div>
+              )}
             </AnimatePresence>
           </div>
         </div>
 
-        <div className="xl:col-span-2 flex flex-col gap-8 h-[700px]">
-          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 h-1/2 flex flex-col">
-            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6">Categorización IA de Anomalías</h2>
-            <div className="flex-1 w-full">
+        {/* PANELES DERECHOS */}
+        <div className="xl:col-span-8 flex flex-col gap-6 h-full min-h-0">
+          
+          {/* GRÁFICA SUPERIOR */}
+          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex-1 min-h-[300px] flex flex-col shrink-0 lg:shrink">
+            <h2 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><Bot size={16} className="text-purple-500"/> Categorización IA de Anomalías Detectadas</h2>
+            <div className="flex-1 w-full min-h-0">
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <defs><linearGradient id="colorFallas" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.9} /><stop offset="95%" stopColor="#2563eb" stopOpacity={0.2} /></linearGradient></defs>
+                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorFallas" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.9} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.2} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} allowDecimals={false} />
-                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} />
-                    <Bar dataKey="fallas" fill="url(#colorFallas)" radius={[8, 8, 0, 0]} barSize={40} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }} allowDecimals={false} />
+                    <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)', fontWeight: 'bold', fontSize: '12px' }} />
+                    <Bar dataKey="fallas" fill="url(#colorFallas)" radius={[6, 6, 0, 0]} barSize={32} />
                   </BarChart>
                 </ResponsiveContainer>
-              ) : <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-100">Sin datos suficientes</div>}
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-100">
+                  <Activity size={32} className="opacity-20 mb-2"/>
+                  <span className="text-xs font-black uppercase tracking-widest">Sin datos suficientes</span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-1/2">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
-              <div className="p-5 border-b border-slate-50 bg-slate-50/80"><h2 className="text-xs font-black text-slate-500 uppercase tracking-widest">Equipos Activos</h2></div>
+          {/* CUADRICULA INFERIOR (Equipos y Vencimientos) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 min-h-[300px]">
+            
+            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+              <div className="p-5 border-b border-slate-50 bg-slate-50/80 shrink-0">
+                <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2"><Server size={14}/> Equipos Activos / Estado</h2>
+              </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
                 <table className="w-full text-left">
                   <tbody className="text-sm divide-y divide-slate-50">
                     {equipmentList.map(eq => (
-                      <tr key={eq.id} className="hover:bg-slate-50">
-                        <td className="py-3 px-4 font-mono font-bold text-[#0b1437] text-xs">{eq.numero_serie}</td>
-                        <td className="py-3 px-4 text-right"><span className={`px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${getStatusColor(eq.status)}`}>{eq.status}</span></td>
+                      <tr key={eq.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-3 px-4 font-mono font-black text-[#0b1437] text-xs">{eq.numero_serie}</td>
+                        <td className="py-3 px-4 text-right">
+                          <span className={`px-2.5 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${getStatusColor(eq.status)}`}>{eq.status.replace('_', ' ')}</span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -384,123 +357,167 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="bg-gradient-to-b from-amber-50/50 to-white rounded-3xl shadow-sm border border-amber-100 flex flex-col overflow-hidden">
-              <div className="p-5 border-b border-amber-100/50 flex justify-between items-center">
-                <h2 className="text-xs font-black text-amber-800 uppercase tracking-widest flex items-center gap-2"><CalendarClock size={16}/> Vencimientos (30d)</h2>
-                <span className="bg-amber-200 text-amber-800 text-[10px] font-black px-2 py-0.5 rounded-md">{expiringLicenses.length}</span>
+            <div className="bg-gradient-to-b from-amber-50/30 to-white rounded-[2rem] shadow-sm border border-amber-100 flex flex-col overflow-hidden">
+              <div className="p-5 border-b border-amber-100/50 flex justify-between items-center shrink-0">
+                <h2 className="text-[10px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-2"><CalendarClock size={14}/> Vencimientos (Próx. 30d)</h2>
+                <span className="bg-amber-200 text-amber-800 text-[10px] font-black px-2.5 py-1 rounded-md">{expiringLicenses.length}</span>
               </div>
               <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
-                {expiringLicenses.map(lic => (
+                {expiringLicenses.length > 0 ? expiringLicenses.map(lic => (
                   <div key={lic.id} className="bg-white border border-amber-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
-                    <p className="font-bold text-sm text-[#0b1437]">{lic.nombre_software}</p>
-                    <div className="flex justify-between items-center mt-2">
-                      <span className="text-[10px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded-md">VENCE: {new Date(lic.fecha_vencimiento).toLocaleDateString()}</span>
-                      <span className="text-xs font-mono text-slate-500">EQ: {lic.equipo_id}</span>
+                    <p className="font-black text-sm text-[#0b1437] mb-2 truncate">{lic.nombre_software}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded-md uppercase tracking-widest">VENCE: {new Date(lic.fecha_vencimiento).toLocaleDateString()}</span>
+                      <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">EQ: {lic.equipo_id}</span>
                     </div>
                   </div>
-                ))}
+                )) : (
+                   <div className="h-full flex flex-col items-center justify-center text-amber-600/50">
+                     <ShieldAlert size={32} className="mb-2 opacity-50"/>
+                     <span className="text-xs font-black uppercase tracking-widest">Todo en orden</span>
+                   </div>
+                )}
               </div>
             </div>
+
           </div>
         </div>
       </div>
 
+      {/* MODAL DEL TICKET (Mesa de Atención) */}
       {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         {selectedTicket && (
-          <motion.div key="modal-ticket" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 w-full h-full bg-[#0b1437]/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4" onClick={handleCloseModal}>
-            <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }} className="bg-white w-full max-w-3xl rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <motion.div key="modal-ticket" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 w-full h-full bg-[#050b1a]/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 md:p-6" onClick={handleCloseModal}>
+            <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }} className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl flex flex-col h-[90vh] md:h-[85vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
               
-              <div className="px-8 py-6 bg-[#0b1437] text-white flex justify-between items-start shrink-0">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-xs font-black text-blue-300 tracking-widest">TKT-{String(selectedTicket.id).padStart(4, '0')}</span>
-                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${getPriorityBadge(selectedTicket.prioridad)}`}>{selectedTicket.prioridad}</span>
-                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest border ${selectedTicket.status === 'ABIERTO' ? 'bg-white/10 text-white border-white/20' : 'bg-blue-500 text-white border-blue-400'}`}>{selectedTicket.status}</span>
-                  </div>                  <p className="text-xs font-bold text-gray-200 mb-2">Cliente: {selectedTicket.cliente?.nombre || selectedTicket.cliente?.email || 'Desconocido'}</p>                  <h2 className="text-2xl font-black">{selectedTicket.titulo}</h2>
+              {/* HEADER MODAL */}
+              <div className="px-8 py-6 bg-[#0b1437] text-white flex justify-between items-start shrink-0 relative overflow-hidden">
+                <div className="absolute -right-10 -top-10 opacity-10"><Ticket size={150}/></div>
+                <div className="relative z-10">
+                  <div className="flex flex-wrap items-center gap-3 mb-3">
+                    <span className="text-xs font-black text-blue-300 tracking-widest bg-blue-900/50 px-3 py-1 rounded-lg">TKT-{String(selectedTicket.id).padStart(4, '0')}</span>
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${getPriorityBadge(selectedTicket.prioridad)}`}>{selectedTicket.prioridad}</span>
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${selectedTicket.status === 'ABIERTO' ? 'bg-white/10 text-white border-white/20' : 'bg-blue-500 text-white border-blue-400'}`}>{selectedTicket.status.replace('_', ' ')}</span>
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-black mb-1">{selectedTicket.titulo}</h2>
+                  <p className="text-xs font-bold text-blue-200 flex items-center gap-1.5"><User size={14}/> Cliente: {selectedTicket.cliente?.nombre || selectedTicket.cliente?.email || 'Desconocido'}</p>
                 </div>
-                <button onClick={handleCloseModal} className="text-white/50 hover:text-white bg-white/10 p-2 rounded-full transition-colors"><X size={20} /></button>
+                <button onClick={handleCloseModal} className="text-white/50 hover:text-white hover:bg-white/10 p-2 rounded-full transition-colors relative z-10"><X size={24} /></button>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-8 bg-slate-50 custom-scrollbar space-y-6">
-                <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Bot size={14} className="text-blue-500" /> Diagnóstico Original de IA</h3>
-                  <p className="text-sm text-[#0b1437] whitespace-pre-wrap leading-relaxed font-medium">{selectedTicket.descripcion}</p>
+              {/* ÁREA DE CONTENIDO (SCROLL) */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 custom-scrollbar space-y-8">
+                
+                {/* Diagnóstico IA */}
+                <div className="flex gap-4 max-w-[90%]">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-100 border border-purple-200 flex items-center justify-center shrink-0 shadow-sm">
+                    <Bot size={24} className="text-purple-600" />
+                  </div>
+                  <div>
+                    <div className="bg-white border border-purple-100 p-5 rounded-3xl rounded-tl-none shadow-sm">
+                      <p className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-2 border-b border-purple-50 pb-2">Diagnóstico Original (IA)</p>
+                      <p className="text-sm text-[#0b1437] whitespace-pre-wrap leading-relaxed font-medium">{selectedTicket.descripcion}</p>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Bitácora / Comentarios */}
                 {comments.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2"><MessageSquare size={14} /> Bitácora de Atención</h3>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="h-px bg-slate-200 flex-1"></div>
+                      <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest"><MessageSquare size={12} className="inline mr-1" /> Bitácora de Atención</h3>
+                      <div className="h-px bg-slate-200 flex-1"></div>
+                    </div>
+                    
                     {comments.map((comment, idx) => (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={idx} className="flex gap-4">
-                        <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-sm"><User size={18} /></div>
-                        <div className="bg-white border border-slate-200 p-5 rounded-3xl rounded-tl-sm text-sm text-[#0b1437] shadow-sm w-full">
-                          <p className="font-medium leading-relaxed">{comment.contenido}</p>
-                          <span className="text-[10px] text-slate-400 mt-3 block font-bold tracking-wider">{new Date(comment.fecha_creacion).toLocaleString()}</span>
+                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={idx} className="flex gap-4 max-w-[90%] self-start">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0 shadow-sm"><Briefcase size={18} /></div>
+                        <div>
+                          <div className="bg-white border border-slate-200 p-5 rounded-3xl rounded-tl-none shadow-sm">
+                            <p className="font-medium text-sm text-[#0b1437] leading-relaxed whitespace-pre-wrap">{comment.contenido}</p>
+                          </div>
+                          <span className="text-[10px] text-slate-400 mt-1.5 ml-2 block font-bold tracking-widest">{new Date(comment.fecha_creacion).toLocaleString()}</span>
                         </div>
                       </motion.div>
                     ))}
                   </div>
                 )}
+              </div>
 
-                <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm mt-6">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><MessageSquare size={14} /> Nuevo Comentario / Actualización</h3>
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Escribe una actualización o nota para el cliente..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-sm font-medium text-[#0b1437] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all resize-none"
-                    rows="3"
-                  ></textarea>
-                  <div className="flex justify-end mt-3">
+              {/* CONTROLES INFERIORES */}
+              <div className="border-t border-slate-100 bg-white shrink-0">
+                
+                {/* Zona de input de comentario */}
+                <div className="p-6 md:px-8 pb-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-3xl p-2 flex items-end gap-3 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10 transition-all shadow-sm">
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Escribe una actualización para la bitácora..."
+                      className="flex-1 bg-transparent p-4 text-sm font-medium text-[#0b1437] outline-none resize-none min-h-[60px] max-h-[120px] custom-scrollbar placeholder:text-slate-400"
+                      rows="1"
+                    ></textarea>
                     <button
                       onClick={handleAddComment}
                       disabled={isProcessing || !newComment.trim()}
-                      className="bg-[#0b1437] hover:bg-blue-800 text-white px-6 py-2.5 rounded-xl text-sm font-black transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+                      className="bg-[#0b1437] hover:bg-blue-800 disabled:bg-slate-300 text-white p-4 rounded-2xl shadow-md transition-all shrink-0 m-1"
                     >
-                      <MessageSquare size={16} /> Enviar Comentario
+                      <ArrowRight size={20} />
                     </button>
                   </div>
                 </div>
-              </div>
 
-              <div className="p-8 border-t border-slate-100 bg-white shrink-0">
-                {selectedTicket.status === 'ABIERTO' ? (
-                  <div className="flex justify-end gap-3">
-                    <button onClick={handleCloseModal} className="px-6 py-4 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-2xl transition-colors">Cerrar Visor</button>
-                    <button onClick={handleAssignTicket} disabled={isProcessing} className="bg-[#0b1437] hover:bg-blue-800 text-white px-10 py-4 rounded-2xl text-sm font-black flex items-center gap-2 transition-colors shadow-lg shadow-blue-900/30 disabled:opacity-50">
-                      <Briefcase size={18} /> Tomar Caso
-                    </button>
-                  </div>
-                ) : selectedTicket.status === 'EN_PROGRESO' && !selectedTicket.fecha_agendada ? (
-                  <div className="space-y-3">
-                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">Agendar Videollamada Técnica</label>
-                    <div className="flex gap-4">
-                      <input 
-                        type="datetime-local" 
-                        value={scheduledDate} 
-                        onChange={e => setScheduledDate(e.target.value)} 
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black text-[#0b1437] outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" 
-                      />
-                      <button onClick={handleScheduleCall} disabled={isProcessing || !scheduledDate} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl text-sm font-black transition-colors shadow-lg shadow-blue-600/30 disabled:opacity-50 flex items-center gap-2">
-                        <Video size={18}/> Agendar y Notificar
+                {/* Botonera de Acción de Estado */}
+                <div className="px-6 md:px-8 py-5 bg-slate-50 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4 rounded-b-[2rem]">
+                  {selectedTicket.status === 'ABIERTO' ? (
+                    <>
+                      <p className="text-xs font-bold text-slate-500">Este ticket requiere ser asignado para iniciar la atención.</p>
+                      <button onClick={handleAssignTicket} disabled={isProcessing} className="w-full md:w-auto bg-[#0b1437] hover:bg-blue-800 text-white px-10 py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/30 hover:-translate-y-0.5 disabled:opacity-50">
+                        <Briefcase size={18} /> Tomar Caso Ahora
+                      </button>
+                    </>
+                  ) : selectedTicket.status === 'EN_PROGRESO' && !selectedTicket.fecha_agendada ? (
+                    <div className="w-full flex flex-col md:flex-row md:items-center gap-4">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-2">Agendar Videollamada Técnica</label>
+                        <input 
+                          type="datetime-local" 
+                          value={scheduledDate} 
+                          onChange={e => setScheduledDate(e.target.value)} 
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-[#0b1437] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm" 
+                        />
+                      </div>
+                      <button onClick={handleScheduleCall} disabled={isProcessing || !scheduledDate} className="w-full md:w-auto h-full mt-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl text-sm font-black transition-all shadow-lg shadow-blue-600/30 hover:-translate-y-0.5 disabled:opacity-50 flex items-center justify-center gap-2">
+                        <Video size={18}/> Agendar
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex justify-between items-center">
-                    <div className="bg-blue-50 border border-blue-100 px-5 py-3.5 rounded-2xl flex items-center gap-4">
-                      <div className="bg-white p-2 rounded-xl text-blue-600 shadow-sm"><Video size={20} /></div>
-                      <div>
-                        <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest">Videollamada Agendada</p>
-                        <p className="text-sm font-black text-[#0b1437] mt-0.5">{new Date(selectedTicket.fecha_agendada).toLocaleString()}</p>
-                      </div>
+                  ) : (
+                    <div className="w-full flex flex-col md:flex-row justify-between items-center gap-4">
+                      {selectedTicket.fecha_agendada && selectedTicket.status !== 'RESUELTO' && (
+                        <div className="bg-blue-50 border border-blue-100 px-5 py-3 rounded-2xl flex items-center gap-3 w-full md:w-auto">
+                          <div className="bg-white p-2 rounded-lg text-blue-600 shadow-sm shrink-0"><Video size={18} /></div>
+                          <div>
+                            <p className="text-[9px] text-blue-600 font-black uppercase tracking-widest">Videollamada Agendada</p>
+                            <p className="text-xs font-black text-[#0b1437] mt-0.5">{new Date(selectedTicket.fecha_agendada).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedTicket.status !== 'RESUELTO' && (
+                        <button onClick={handleResolveTicket} disabled={isProcessing} className="w-full md:w-auto ml-auto bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 disabled:opacity-50">
+                          <CheckCircle2 size={18} /> Concluir Soporte
+                        </button>
+                      )}
+                      {selectedTicket.status === 'RESUELTO' && (
+                        <div className="w-full text-center md:text-left flex items-center gap-2 text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
+                           <CheckCircle2 size={18}/> <span className="text-sm font-black">Caso cerrado exitosamente</span>
+                        </div>
+                      )}
                     </div>
-                    <button onClick={handleResolveTicket} disabled={isProcessing} className="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-4 rounded-2xl text-sm font-black flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/30 disabled:opacity-50">
-                      <CheckCircle2 size={18} /> Concluir Soporte
-                    </button>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
+              </div>
             </motion.div>
           </motion.div>
         )}

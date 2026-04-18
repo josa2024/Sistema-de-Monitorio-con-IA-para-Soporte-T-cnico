@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date
 
 class LicenseCreate(BaseModel):
@@ -17,6 +17,32 @@ class LicenseCreate(BaseModel):
     ejecutivo_cargo: Optional[str] = None
     marca: Optional[str] = None
     proveedor: Optional[str] = None
+
+# 🔥 NUEVOS ESQUEMAS PARA EL CHAT
+class CommentAuthor(BaseModel):
+    id: int
+    nombre: Optional[str] = None
+    email: str
+    role_id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+class LicenciaCommentResponse(BaseModel):
+    id: int
+    licencia_id: int
+    autor_id: int
+    contenido: str
+    archivo_url: Optional[str] = None
+    fecha_creacion: datetime
+    autor: Optional[CommentAuthor] = None
+
+    class Config:
+        from_attributes = True
+
+class LicenciaCommentCreate(BaseModel):
+    contenido: str
+    # El archivo no va aquí porque se enviará como Form-Data (Multipart) en el endpoint
 
 class LicenseResponse(BaseModel):
     id: int
@@ -36,6 +62,9 @@ class LicenseResponse(BaseModel):
     proveedor: Optional[str] = None
     
     is_active: bool
+    
+    # 🔥 Agregamos la lista de comentarios para que viajen junto con la licencia
+    comentarios: List[LicenciaCommentResponse] = []
 
     class Config:
         from_attributes = True
