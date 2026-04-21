@@ -8,6 +8,7 @@ backend/.env
 frontend/.env
 *.env.local
 *.env.*.local
+**/.env
 
 # --- 2. Archivos Generados por el Usuario ---
 # Directorio donde los usuarios suben archivos (imágenes, documentos, etc.).
@@ -30,6 +31,8 @@ venv/
 /frontend/node_modules/
 /frontend/dist/
 /frontend/build/
+/frontend/.eslintcache
+/frontend/coverage/
 .npm/
 
 # --- 4. Cache y Archivos Compilados ---
@@ -78,3 +81,9 @@ backend/celerybeat-schedule
 .pytest_cache/
 .coverage
 htmlcov/
+
+# --- 9. Inteligencia Artificial (LangChain / FAISS) ---
+# Prevenir subida de índices vectoriales pesados o serializados
+*.faiss
+*.pkl
+faiss_index/

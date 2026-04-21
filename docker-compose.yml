@@ -6,14 +6,12 @@ services:
     image: postgres:15-alpine
     container_name: innotrev_db
     restart: always
-    environment:
-      - POSTGRES_USER=innotrev_user
-      - POSTGRES_PASSWORD=innotrev_password
-      - POSTGRES_DB=innotrev_db
+    env_file:
+      - .env
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U innotrev_user -d innotrev_db"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
