@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ShieldCheck, Key, Plus, AlertTriangle, Download, X, Search, CalendarClock, Box, Lock, Fingerprint, HardDrive } from 'lucide-react';
+import { ShieldCheck, Key, Plus, AlertTriangle, Download, X, Search, CalendarClock, Box, Lock, Fingerprint, HardDrive, ChevronUp, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuthHeaders } from '../services/api';
 
@@ -12,6 +12,7 @@ const Licencias = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAlertsMinimized, setIsAlertsMinimized] = useState(false);
   
   const [form, setForm] = useState({ tipo: 'GARANTIA_HW', nombre_software: '', licencia_key: '', fecha_inicio: '', fecha_vencimiento: '', file: null });
 
@@ -85,7 +86,6 @@ const Licencias = () => {
   };
 
   return (
-    // 🔥 CAMBIO CLAVE AQUÍ: Usamos 'absolute inset-0' y 'overflow-hidden' para bloquear la página
     <div className="absolute inset-0 p-6 md:p-8 max-w-[1600px] mx-auto w-full flex flex-col gap-6 overflow-hidden">
       
       {/* HEADER */}
@@ -106,29 +106,38 @@ const Licencias = () => {
             <AlertTriangle size={28} className="animate-pulse" />
           </div>
           <div className="w-full relative z-10">
-            <h3 className="text-red-900 font-black text-sm uppercase tracking-widest mb-3">Atención Requerida: Renovaciones Próximas ({expiringLicenses.length})</h3>
-            <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
-              {expiringLicenses.map(lic => (
-                <div key={lic.id} className="bg-white border border-red-100 p-4 rounded-2xl flex flex-col justify-between shadow-sm min-w-[250px] shrink-0 hover:shadow-md transition-all hover:-translate-y-1">
-                  <div className="flex justify-between items-start mb-2">
-                    <p className="text-sm font-black text-[#0b1437] truncate">{lic.nombre_software}</p>
-                    <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-black">EQ. #{lic.equipo_id}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
-                    <CalendarClock size={14} className="text-red-600"/>
-                    <p className="text-xs text-red-700 font-black tracking-wider">VENCE: {new Date(lic.fecha_vencimiento).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              ))}
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-red-900 font-black text-sm uppercase tracking-widest">Atención Requerida: Renovaciones Próximas ({expiringLicenses.length})</h3>
+              <button onClick={() => setIsAlertsMinimized(!isAlertsMinimized)} className="text-red-500 hover:text-red-700 bg-red-100/50 hover:bg-red-200 p-1.5 rounded-lg transition-colors shrink-0">
+                {isAlertsMinimized ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+              </button>
             </div>
+            <AnimatePresence initial={false}>
+              {!isAlertsMinimized && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                  {expiringLicenses.map(lic => (
+                    <div key={lic.id} className="bg-white border border-red-100 p-4 rounded-2xl flex flex-col justify-between shadow-sm min-w-[250px] shrink-0 hover:shadow-md transition-all hover:-translate-y-1">
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="text-sm font-black text-[#0b1437] truncate">{lic.nombre_software}</p>
+                        <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-black">EQ. #{lic.equipo_id}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
+                        <CalendarClock size={14} className="text-red-600"/>
+                        <p className="text-xs text-red-700 font-black tracking-wider">VENCE: {new Date(lic.fecha_vencimiento).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       )}
 
-      {/* 🔥 ÁREA PRINCIPAL: 'flex-1 min-h-0' es el truco para que los paneles internos puedan scrollear */}
+      {/* ÁREA PRINCIPAL */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
         
-        {/* PANEL IZQUIERDO: DIRECTORIO (SCROLL INTERNO) */}
+        {/* PANEL IZQUIERDO: DIRECTORIO */}
         <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden lg:col-span-4 xl:col-span-3">
           <div className="p-6 border-b border-slate-50 bg-[#0b1437] text-white relative overflow-hidden shrink-0">
             <div className="absolute -right-4 -top-4 opacity-10"><HardDrive size={100} /></div>
@@ -138,7 +147,7 @@ const Licencias = () => {
               <input type="text" placeholder="Buscar S/N o Modelo..." className="w-full pl-11 pr-4 py-3.5 bg-white/10 border border-white/20 rounded-2xl text-sm focus:bg-white focus:text-[#0b1437] outline-none transition-all font-medium placeholder:text-blue-300 shadow-inner" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/30">
+          <div className="flex-1 overflow-y-auto p-4 bg-slate-50/30 custom-scrollbar">
             {filteredEquipments.map(eq => {
               const isSelected = selectedEquipment?.id === eq.id;
               return (
@@ -155,7 +164,7 @@ const Licencias = () => {
           </div>
         </div>
 
-        {/* PANEL DERECHO: BÓVEDA DEL EQUIPO (SCROLL INTERNO) */}
+        {/* PANEL DERECHO: BÓVEDA DEL EQUIPO */}
         <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 flex flex-col h-full overflow-hidden lg:col-span-8 xl:col-span-9 relative">
           {selectedEquipment ? (
             <>
@@ -215,7 +224,7 @@ const Licencias = () => {
                     })}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
+              <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-slate-400 space-y-4">
                     <div className="bg-white p-8 rounded-full shadow-sm border border-slate-100 mb-2">
                       <Lock size={64} className="text-slate-300" />
                     </div>
@@ -226,7 +235,7 @@ const Licencias = () => {
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-6 bg-slate-50/50">
+            <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-slate-400 space-y-6 bg-slate-50/50">
               <Box size={80} className="opacity-20" />
               <p className="text-lg font-medium bg-white px-6 py-3 rounded-full shadow-sm border border-slate-100 text-slate-500">Selecciona un equipo del directorio lateral.</p>
             </div>

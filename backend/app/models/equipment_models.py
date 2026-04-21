@@ -57,14 +57,6 @@ class Equipo(Base):
     def url_evidencia(self):
         return self.seguimiento.evidencia_url if self.seguimiento else None
 
-    @property
-    def fecha_inicio_garantia(self):
-        if self.garantias:
-            garantias_activas = [g for g in self.garantias if g.is_active]
-            if garantias_activas:
-                return garantias_activas[0].fecha_inicio
-        return None
-
 
 class SeguimientoInstalacion(Base):
     __tablename__ = "seguimiento_instalacion"
@@ -80,6 +72,22 @@ class SeguimientoInstalacion(Base):
     equipo = relationship("app.models.equipment_models.Equipo", back_populates="seguimiento")
 
 
+# 🔥 NUEVA TABLA PARA LOS COMENTARIOS DEL CHAT
+class LicenciaComment(Base):
+    __tablename__ = "licencia_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    licencia_id = Column(Integer, ForeignKey("garantias_licencias.id", ondelete="CASCADE"), nullable=False, index=True)
+    autor_id = Column(Integer, ForeignKey("users.id"), nullable=False) 
+    
+    contenido = Column(String(1000), nullable=False)
+    archivo_url = Column(String(512), nullable=True) 
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+
+    licencia = relationship("GarantiaLicencia", back_populates="comentarios")
+    autor = relationship("app.models.user_models.User")
+
+
 class GarantiaLicencia(Base):
     __tablename__ = "garantias_licencias"
     id = Column(Integer, primary_key=True, index=True)
@@ -88,19 +96,20 @@ class GarantiaLicencia(Base):
     nombre_software = Column(String, nullable=True)
     licencia_key = Column(String, nullable=True)  
     
-    # === NUEVOS CAMPOS DE LA GARANTÍA ===
     folio = Column(String, unique=True, index=True, nullable=True)
     fecha_reporte = Column(Date, nullable=True)
     ejecutivo_cargo = Column(String, nullable=True)
     marca = Column(String, nullable=True)
     proveedor = Column(String, nullable=True)
-    # ====================================
 
     fecha_inicio = Column(Date)
     fecha_vencimiento = Column(Date)
     is_active = Column(Boolean, default=True)
     
     equipo = relationship("app.models.equipment_models.Equipo", back_populates="garantias")
+    
+    # 🔥 RELACIÓN CON LOS COMENTARIOS
+    comentarios = relationship("LicenciaComment", back_populates="licencia", cascade="all, delete-orphan")
 
 
 class EquipmentLog(Base):

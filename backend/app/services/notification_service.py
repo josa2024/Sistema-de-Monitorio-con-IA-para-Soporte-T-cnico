@@ -1,7 +1,7 @@
 
 from typing import Dict, Any
 from datetime import date
-from app.models.license_models import License
+from app.models.equipment_models import GarantiaLicencia
 
 class NotificationService:
     """
@@ -11,7 +11,7 @@ class NotificationService:
     WebSockets, correos electrónicos, etc.
     """
 
-    def send_preventive_alert(self, license_data: License):
+    def send_preventive_alert(self, license_data: GarantiaLicencia):
         """
         Simula el envío de una alerta preventiva sobre una licencia que está por vencer.
 
@@ -25,7 +25,7 @@ class NotificationService:
             Ej: await manager.send_personal_message(payload, technician_id)
 
         Args:
-            license_data (License): El objeto de la licencia próxima a vencer.
+            license_data (GarantiaLicencia): El objeto de la licencia próxima a vencer.
         """
         # --- INICIO DEL MOCK ---
         # Simplemente imprimimos en consola para verificar que la tarea de Celery lo llama.

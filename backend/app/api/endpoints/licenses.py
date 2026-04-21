@@ -2,31 +2,39 @@ import os
 import shutil
 import random
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, List
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 
 # Importamos deps para seguridad
 from app.api import deps
 from app.models.roles import RoleEnum
 from app.models.equipment_models import GarantiaLicencia, TipoGarantia 
+# 🔥 NUEVO: Importamos el modelo de comentarios
+from app.models.equipment_models import LicenciaComment
 from app.models.user_models import User
 from sqlalchemy import select
+from app.schemas.license import LicenciaCommentResponse
 
 router = APIRouter()
 
-UPLOAD_DIR = Path(__file__).parent.parent.parent.parent / "uploads" / "licenses"
+# 🔥 ACTUALIZADO: Directorio base de subidas para poder separar licencias de evidencias de chat
+UPLOAD_BASE_DIR = Path(__file__).parent.parent.parent.parent / "uploads"
+UPLOAD_DIR = UPLOAD_BASE_DIR / "licenses"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+CHAT_DIR = UPLOAD_BASE_DIR / "chat_evidences"
+CHAT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Esquema para actualizar fechas
 class LicenseDateUpdate(BaseModel):
     fecha_vencimiento: str
 
-@router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(deps.require_admin)])
+@router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(deps.require_admin_or_ventas)])
 def create_license(
     *,
     db: Session = Depends(deps.get_db),
@@ -45,7 +53,7 @@ def create_license(
     proveedor: str | None = Form(None),
     current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """ Sube y asigna una licencia de software o Expediente de Garantía a un equipo. (Solo Admin) """
+    """ Sube y asigna una licencia de software o Expediente de Garantía a un equipo. (Admin y Ventas) """
     try:
         selected_equipment_id = equipment_id or equipo_id
         if not selected_equipment_id:
@@ -122,7 +130,6 @@ def create_license(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {str(e)}")
 
-# CAMBIO AQUÍ: Se eliminó la restricción de Ventas. Todos pueden leer.
 @router.get("/equipo/{equipo_id}")
 def get_equipment_licenses(
     equipo_id: int,
@@ -144,12 +151,11 @@ def get_equipment_licenses(
             "fecha_inicio": lic.fecha_inicio.isoformat() if lic.fecha_inicio else None,
             "fecha_vencimiento": lic.fecha_vencimiento.isoformat() if lic.fecha_vencimiento else None,
             "folio": lic.folio, "fecha_reporte": lic.fecha_reporte.isoformat() if lic.fecha_reporte else None,
-            "ejecutivo": {"nombre": lic.ejecutivo_cargo}, "marca": lic.marca, "proveedor": lic.proveedor,
+            "ejecutivo_cargo": lic.ejecutivo_cargo, "marca": lic.marca, "proveedor": lic.proveedor, # CORREGIDO ejecutivo_cargo
             "cliente_nombre": cliente_nombre
         })
     return resultado
 
-# CAMBIO AQUÍ: Ahora requiere 'require_internal_staff' para que Soporte y Ventas vean el Dashboard.
 @router.get("/dashboard/expiring", dependencies=[Depends(deps.require_internal_staff)])
 def get_expiring_licenses(
     days: int = 30,
@@ -168,17 +174,12 @@ def get_expiring_licenses(
         "fecha_vencimiento": lic.fecha_vencimiento.isoformat() if lic.fecha_vencimiento else None
     } for lic in licencias]
 
-# ==========================================
-# NUEVAS RUTAS PARA VENTAS Y ADMIN
-# ==========================================
-
 @router.put("/{license_id}", dependencies=[Depends(deps.require_admin_or_ventas)])
 def update_license_date(
     license_id: int,
     data: LicenseDateUpdate,
     db: Session = Depends(deps.get_db)
 ) -> Any:
-    """ Actualiza la fecha de vencimiento de una garantía (Admin o Ventas) """
     stmt = select(GarantiaLicencia).where(GarantiaLicencia.id == license_id)
     lic = db.execute(stmt).scalar_one_or_none()
     if not lic:
@@ -198,7 +199,6 @@ def delete_license(
     license_id: int,
     db: Session = Depends(deps.get_db)
 ) -> Any:
-    """ Elimina una garantía/licencia por completo (Admin o Ventas) """
     stmt = select(GarantiaLicencia).where(GarantiaLicencia.id == license_id)
     lic = db.execute(stmt).scalar_one_or_none()
     if not lic:
@@ -207,7 +207,6 @@ def delete_license(
     db.delete(lic)
     db.commit()
     return {"message": "Garantía/Licencia eliminada exitosamente."}
-
 
 @router.get("/descargar/{license_id}")
 def download_license(
@@ -218,3 +217,68 @@ def download_license(
     if not license_obj:
         raise HTTPException(status_code=404, detail="Licencia no encontrada.")
     raise HTTPException(status_code=404, detail="La descarga de archivos no está configurada para este modelo de Garantía.")
+
+
+# ==========================================
+# 🔥 NUEVAS RUTAS: CHAT / BITÁCORA DE GARANTÍAS
+# ==========================================
+
+@router.get("/{license_id}/comments", response_model=List[LicenciaCommentResponse])
+def get_license_comments(
+    license_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user)
+) -> Any:
+    """ Obtiene todo el hilo de mensajes de una garantía específica. """
+    stmt = select(GarantiaLicencia).where(GarantiaLicencia.id == license_id)
+    if not db.execute(stmt).scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Garantía no encontrada.")
+
+    comentarios = db.query(LicenciaComment).options(
+        joinedload(LicenciaComment.autor)
+    ).filter(LicenciaComment.licencia_id == license_id).order_by(LicenciaComment.fecha_creacion.asc()).all()
+    
+    return comentarios
+
+
+@router.post("/{license_id}/comments", status_code=status.HTTP_201_CREATED)
+def add_license_comment(
+    license_id: int,
+    contenido: str = Form(...),
+    file: UploadFile | None = File(None),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user)
+) -> Any:
+    """ 
+    Agrega un nuevo mensaje al hilo de la garantía. 
+    Soporta subir un archivo adjunto (ej. foto de evidencia).
+    """
+    stmt = select(GarantiaLicencia).where(GarantiaLicencia.id == license_id)
+    lic = db.execute(stmt).scalar_one_or_none()
+    if not lic:
+        raise HTTPException(status_code=404, detail="Garantía no encontrada.")
+
+    file_path_for_db = None
+    if file:
+        try:
+            timestamp = int(datetime.now().timestamp())
+            safe_filename = f"chat_{license_id}_{timestamp}_{file.filename}"
+            full_path = CHAT_DIR / safe_filename
+            with open(str(full_path), "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+            file_path_for_db = f"/uploads/chat_evidences/{safe_filename}"
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error al guardar imagen adjunta: {str(e)}")
+
+    nuevo_comentario = LicenciaComment(
+        licencia_id=license_id,
+        autor_id=current_user.id,
+        contenido=contenido,
+        archivo_url=file_path_for_db
+    )
+
+    db.add(nuevo_comentario)
+    db.commit()
+    db.refresh(nuevo_comentario)
+
+    return {"message": "Comentario agregado exitosamente"}
