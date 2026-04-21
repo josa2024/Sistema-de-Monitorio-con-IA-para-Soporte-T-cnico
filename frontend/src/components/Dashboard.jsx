@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, CheckCircle2, Server, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Bot, Video, LayoutDashboard, Cpu, ShieldAlert } from 'lucide-react';
+import { Activity, CheckCircle2, Server, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Bot, Video, LayoutDashboard, Cpu, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuthHeaders } from '../services/api';
@@ -102,7 +102,7 @@ const Dashboard = () => {
           fetchData();
         }
         if (data.evento === "EQUIPO_RECEPCIONADO") {
-          setLiveAlert(`Equipo recibido e instalado: ID ${data.equipo_id}`);
+          setLiveAlert(`Equipo revisado / status: ${data.status}`);
           setTimeout(() => setLiveAlert(null), 6000);
           fetchData();
         }
@@ -164,6 +164,34 @@ const Dashboard = () => {
     } catch (error) {
       alert('No se pudo resolver el ticket.');
     } finally { setIsProcessing(false); }
+  };
+
+  // 🔥 NUEVA FUNCIÓN: ESCALAR A GARANTÍA
+  const handleEscalateToWarranty = async () => {
+    if (!selectedTicket?.id) return;
+    
+    if(!window.confirm("⚠️ ¿Estás seguro que deseas escalar este caso a Garantías?\n\nEl ticket de soporte actual se cerrará y el equipo cambiará a estado FALLA REPORTADA para que el departamento de logística/ventas gestione la garantía física.")) return;
+
+    setIsProcessing(true);
+    const headers = getAuthHeaders();
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/escalate`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al escalar a garantías');
+      }
+      
+      alert('✅ Ticket cerrado y escalado a Garantías exitosamente.');
+      await fetchData();
+      handleCloseModal();
+    } catch (error) {
+      alert(`❌ ${error.message}`);
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
 
   const handleScheduleCall = async () => {
@@ -258,7 +286,7 @@ const Dashboard = () => {
         ))}
       </div>
 
-      {/* 🔥 ÁREA PRINCIPAL CON SCROLLS INDEPENDIENTES ('flex-1 min-h-0') */}
+      {/* ÁREA PRINCIPAL CON SCROLLS INDEPENDIENTES */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 min-h-0">
         
         {/* PANEL IZQUIERDO: COLA DE ATENCIÓN */}
@@ -503,10 +531,20 @@ const Dashboard = () => {
                           </div>
                         </div>
                       )}
+                      
                       {selectedTicket.status !== 'RESUELTO' && (
-                        <button onClick={handleResolveTicket} disabled={isProcessing} className="w-full md:w-auto ml-auto bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 disabled:opacity-50">
-                          <CheckCircle2 size={18} /> Concluir Soporte
-                        </button>
+                        <div className="flex flex-col md:flex-row items-center gap-3 ml-auto w-full md:w-auto">
+                          
+                          {/* 🔥 NUEVO BOTÓN: ESCALAR A GARANTÍA */}
+                          <button onClick={handleEscalateToWarranty} disabled={isProcessing} className="w-full md:w-auto bg-orange-100 hover:bg-orange-500 text-orange-700 hover:text-white border border-orange-200 hover:border-transparent px-6 py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                            <AlertTriangle size={18} /> Escalar a Garantía
+                          </button>
+
+                          <button onClick={handleResolveTicket} disabled={isProcessing} className="w-full md:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/30 hover:-translate-y-0.5 disabled:opacity-50">
+                            <CheckCircle2 size={18} /> Concluir Soporte
+                          </button>
+
+                        </div>
                       )}
                       {selectedTicket.status === 'RESUELTO' && (
                         <div className="w-full text-center md:text-left flex items-center gap-2 text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">

@@ -665,125 +665,110 @@ const InnotrevWeb = ({ isAuthenticated, userName, onLoginSuccess, onLogout }) =>
               <div className="p-6 md:p-8 overflow-y-auto flex-1 bg-white custom-scrollbar">
                 {isLoadingLicencias ? (
                    <div className="text-center py-20 text-slate-500 font-bold animate-pulse">Cargando expediente...</div>
-                ) : licenciasCliente.length > 0 ? (
-                  <div className="space-y-12">
-                    {licenciasCliente.map(lic => (
-                      <div key={lic.id} className="border-2 border-slate-100 rounded-[2rem] p-6 relative overflow-hidden bg-white shadow-sm">
-                        
-                        {/* DATOS DE LA GARANTÍA */}
-                        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-6 border-b border-slate-100 gap-4">
-                          <div>
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Folio / ID de Garantía</p>
-                            <p className="text-xl font-black text-blue-700 font-mono">{lic.folio || "GAR-PENDIENTE"}</p>
-                          </div>
-                          <div className="flex flex-col md:items-end gap-2">
-                            <span className="text-xs font-black px-3 py-1.5 rounded-md bg-slate-100 text-slate-600 flex items-center gap-2">
-                              <Calendar size={14}/> Vence: {lic.fecha_vencimiento ? new Date(lic.fecha_vencimiento).toLocaleDateString() : 'N/A'}
-                            </span>
-                            <button onClick={() => handleDownloadCertificado(lic.id, lic.nombre_software)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-4 py-2 mt-2 rounded-xl transition-colors text-xs font-black flex items-center gap-2 shadow-sm border border-blue-100"><Download size={14} /> Descargar Póliza</button>
-                          </div>
-                        </div>
-
-                        {/* 🔥 SECCIÓN: CHAT Y BITÁCORA DEL CLIENTE */}
-                        <div className="mt-8 border-t border-slate-100 pt-8">
-                          <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><MessageCircle size={16} className="text-blue-500"/> Seguimiento del Equipo (Chat)</h4>
-                          
-                          {/* LISTA DE MENSAJES */}
-                          <div className="space-y-4 mb-6 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
-                            {warrantyComments[lic.id]?.map(c => {
-                              const isMe = c.autor?.role_id === 3; // Role 3 = Cliente (Yo)
-                              
-                              return (
-                                <div key={c.id} className={`flex gap-3 max-w-[85%] md:max-w-[75%] ${isMe ? 'self-end flex-row-reverse ml-auto' : 'self-start'}`}>
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm border ${isMe ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-500'}`}>
-                                    <User size={14} />
-                                  </div>
-                                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                    <div className={`p-4 rounded-2xl shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-500/20' : 'bg-slate-100 text-slate-700 rounded-tl-none border border-slate-200'}`}>
-                                      <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 border-b pb-1 ${isMe ? 'border-blue-400/50 text-blue-100' : 'border-slate-300 opacity-60'}`}>
-                                        {isMe ? 'Yo' : (c.autor?.nombre || c.autor?.email || 'Soporte Innotrev')}
-                                      </p>
-                                      <p className="text-sm whitespace-pre-wrap leading-relaxed font-medium">{c.contenido}</p>
-                                      
-                                      {/* Archivo Adjunto */}
-                                      {c.archivo_url && (
-                                        <div className="mt-3">
-                                          {c.archivo_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
-                                            <a href={`http://localhost:8000${c.archivo_url}`} target="_blank" rel="noreferrer">
-                                              <img src={`http://localhost:8000${c.archivo_url}`} alt="Evidencia adjunta" className="max-w-full md:max-w-[250px] max-h-48 object-cover rounded-lg border border-white/20 shadow-sm hover:opacity-90 transition-opacity" />
-                                            </a>
-                                          ) : (
-                                            <a href={`http://localhost:8000${c.archivo_url}`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors w-max ${isMe ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-white border border-slate-200 hover:bg-slate-50 text-blue-600'}`}>
-                                              <FileText size={14}/> Ver Documento Adjunto
-                                            </a>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <span className="text-[9px] font-bold text-slate-400 mt-1 mx-1">
-                                      {new Date(c.fecha_creacion).toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}
-                                    </span>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                            {!warrantyComments[lic.id]?.length && (
-                              <div className="text-center py-10 text-slate-400 border border-dashed border-slate-200 rounded-3xl">
-                                <MessageCircle size={32} className="mx-auto mb-2 opacity-30"/>
-                                <p className="text-sm font-bold">Aún no hay mensajes en la bitácora.</p>
-                                <p className="text-xs font-medium mt-1">Escribe a Innotrev si tienes dudas sobre este equipo.</p>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* CAJA DE TEXTO PARA RESPONDER */}
-                          <div className="bg-slate-50 border border-slate-200 rounded-[2rem] p-2 flex flex-col md:flex-row items-end gap-3 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10 transition-all shadow-sm">
-                            <div className="flex items-center w-full md:w-auto px-2 md:px-0">
-                              <label className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-100 rounded-full cursor-pointer transition-colors shrink-0 relative" title="Adjuntar Evidencia">
-                                <Paperclip size={20} />
-                                <input type="file" className="hidden" onChange={(e) => setWarrantyChatInputs(prev => ({...prev, [lic.id]: { ...prev[lic.id], file: e.target.files[0] }}))} />
-                                {warrantyChatInputs[lic.id]?.file && <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></div>}
-                              </label>
-                            </div>
-
-                            <div className="flex-1 flex flex-col justify-end w-full px-2 md:px-0 pb-1">
-                              {warrantyChatInputs[lic.id]?.file && (
-                                <div className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-black w-max mb-2 flex items-center gap-2 truncate max-w-[200px] border border-blue-200">
-                                  <FileText size={14}/> {warrantyChatInputs[lic.id]?.file.name}
-                                  <button onClick={() => setWarrantyChatInputs(prev => ({...prev, [lic.id]: { ...prev[lic.id], file: null }}))} className="hover:text-red-500 bg-white rounded-full p-0.5"><X size={12}/></button>
-                                </div>
-                              )}
-                              <textarea
-                                value={warrantyChatInputs[lic.id]?.text || ''}
-                                onChange={e => setWarrantyChatInputs(prev => ({...prev, [lic.id]: { ...prev[lic.id], text: e.target.value }}))}
-                                placeholder="Envía un mensaje a Innotrev o adjunta una fotografía..."
-                                className="w-full bg-transparent p-2 text-sm font-medium text-[#0b1437] outline-none resize-none min-h-[44px] max-h-[120px] custom-scrollbar placeholder:text-slate-400"
-                                rows="1"
-                              />
-                            </div>
-
-                            <div className="w-full md:w-auto flex justify-end">
-                              <button
-                                onClick={() => handleSendWarrantyComment(lic.id)}
-                                disabled={isSendingWarrantyChat || (!warrantyChatInputs[lic.id]?.text?.trim() && !warrantyChatInputs[lic.id]?.file)}
-                                className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white px-6 py-3 md:p-4 rounded-2xl shadow-md transition-all shrink-0 font-black flex items-center gap-2 m-1"
-                              >
-                                <span className="md:hidden">Enviar a Innotrev</span>
-                                <Send size={18} />
-                              </button>
-                            </div>
-                          </div>
-
+                ) : (
+                  <>
+                    {selectedEqLicencias.status === 'FALLA_REPORTADA' && (
+                      <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-6 flex items-start gap-3 text-amber-700 shadow-sm">
+                        <AlertTriangle className="shrink-0 mt-0.5" size={20}/>
+                        <div>
+                          <p className="font-black text-sm uppercase tracking-widest">Equipo en Revisión Técnica</p>
+                          <p className="text-xs font-medium mt-1">Este equipo ha sido reportado con fallas o escalado por el técnico. Utiliza el chat a continuación para comunicarte con nuestro equipo de garantías y logística.</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-16 text-slate-400 flex flex-col items-center">
-                    <Factory size={64} className="mb-4 opacity-20" />
-                    <h3 className="text-xl font-black text-slate-600 mb-1">Sin expediente</h3>
-                    <p className="text-sm font-medium">Innotrev aún no ha subido tu póliza oficial.</p>
-                  </div>
+                    )}
+
+                    {licenciasCliente.length > 0 ? (
+                      <div className="space-y-12">
+                        {licenciasCliente.map(lic => (
+                          <div key={lic.id} className="border-2 border-slate-100 rounded-[2rem] p-6 relative overflow-hidden bg-white shadow-sm">
+                            
+                            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-6 border-b border-slate-100 gap-4">
+                              <div>
+                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Folio / ID de Garantía</p>
+                                <p className="text-xl font-black text-blue-700 font-mono">{lic.folio || "GAR-PENDIENTE"}</p>
+                              </div>
+                              <div className="flex flex-col md:items-end gap-2">
+                                <span className="text-xs font-black px-3 py-1.5 rounded-md bg-slate-100 text-slate-600 flex items-center gap-2">
+                                  <Calendar size={14}/> Vence: {lic.fecha_vencimiento ? new Date(lic.fecha_vencimiento).toLocaleDateString() : 'N/A'}
+                                </span>
+                                <button onClick={() => handleDownloadCertificado(lic.id, lic.nombre_software)} className="text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white px-4 py-2 mt-2 rounded-xl transition-colors text-xs font-black flex items-center gap-2 shadow-sm border border-blue-100"><Download size={14} /> Descargar Póliza</button>
+                              </div>
+                            </div>
+
+                            <div className="mt-8 border-t border-slate-100 pt-8">
+                              <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2"><MessageCircle size={16} className="text-blue-500"/> Seguimiento del Equipo (Chat)</h4>
+                              
+                              <div className="space-y-4 mb-6 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+                                {warrantyComments[lic.id]?.map(c => {
+                                  const isMe = c.autor?.role_id === 3; 
+                                  return (
+                                    <div key={c.id} className={`flex gap-3 max-w-[85%] md:max-w-[75%] ${isMe ? 'self-end flex-row-reverse ml-auto' : 'self-start'}`}>
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm border ${isMe ? 'bg-blue-100 border-blue-200 text-blue-600' : 'bg-slate-50 border-slate-200 text-slate-500'}`}><User size={14} /></div>
+                                      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                        <div className={`p-4 rounded-2xl shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none shadow-blue-500/20' : 'bg-slate-100 text-slate-700 rounded-tl-none border border-slate-200'}`}>
+                                          <p className={`text-[10px] font-black uppercase tracking-widest mb-1.5 border-b pb-1 ${isMe ? 'border-blue-400/50 text-blue-100' : 'border-slate-300 opacity-60'}`}>{isMe ? 'Yo' : (c.autor?.nombre || 'Soporte Innotrev')}</p>
+                                          <p className="text-sm whitespace-pre-wrap leading-relaxed font-medium">{c.contenido}</p>
+                                          {c.archivo_url && (
+                                            <div className="mt-3">
+                                              {c.archivo_url.match(/\.(jpeg|jpg|gif|png)$/i) ? (
+                                                <a href={`http://localhost:8000${c.archivo_url}`} target="_blank" rel="noreferrer"><img src={`http://localhost:8000${c.archivo_url}`} alt="Evidencia adjunta" className="max-w-full md:max-w-[250px] max-h-48 object-cover rounded-lg border border-white/20 shadow-sm" /></a>
+                                              ) : (
+                                                <a href={`http://localhost:8000${c.archivo_url}`} target="_blank" rel="noreferrer" className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold w-max ${isMe ? 'bg-white/20 text-white' : 'bg-white border border-slate-200 text-blue-600'}`}><FileText size={14}/> Ver Documento Adjunto</a>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-400 mt-1 mx-1">{new Date(c.fecha_creacion).toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                                {!warrantyComments[lic.id]?.length && (
+                                  <div className="text-center py-10 text-slate-400 border border-dashed border-slate-200 rounded-3xl"><MessageCircle size={32} className="mx-auto mb-2 opacity-30"/><p className="text-sm font-bold">Aún no hay mensajes en la bitácora.</p></div>
+                                )}
+                              </div>
+
+                              <div className="bg-slate-50 border border-slate-200 rounded-[2rem] p-2 flex flex-col md:flex-row items-end gap-3 shadow-sm">
+                                <div className="flex items-center w-full md:w-auto px-2 md:px-0">
+                                  <label className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-100 rounded-full cursor-pointer relative">
+                                    <Paperclip size={20} />
+                                    <input type="file" className="hidden" onChange={(e) => setWarrantyChatInputs(prev => ({...prev, [lic.id]: { ...prev[lic.id], file: e.target.files[0] }}))} />
+                                    {warrantyChatInputs[lic.id]?.file && <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"></div>}
+                                  </label>
+                                </div>
+                                <div className="flex-1 flex flex-col justify-end w-full px-2 md:px-0 pb-1">
+                                  {warrantyChatInputs[lic.id]?.file && (
+                                    <div className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-black w-max mb-2 flex items-center gap-2 border border-blue-200">
+                                      <FileText size={14}/> {warrantyChatInputs[lic.id]?.file.name}
+                                      <button onClick={() => setWarrantyChatInputs(prev => ({...prev, [lic.id]: { ...prev[lic.id], file: null }}))} className="hover:text-red-500 bg-white rounded-full p-0.5"><X size={12}/></button>
+                                    </div>
+                                  )}
+                                  <textarea
+                                    value={warrantyChatInputs[lic.id]?.text || ''}
+                                    onChange={e => setWarrantyChatInputs(prev => ({...prev, [lic.id]: { ...prev[lic.id], text: e.target.value }}))}
+                                    placeholder="Envía un mensaje a Innotrev o adjunta una fotografía..."
+                                    className="w-full bg-transparent p-2 text-sm font-medium text-[#0b1437] outline-none resize-none min-h-[44px] max-h-[120px] custom-scrollbar"
+                                    rows="1"
+                                  />
+                                </div>
+                                <div className="w-full md:w-auto flex justify-end">
+                                  <button onClick={() => handleSendWarrantyComment(lic.id)} disabled={isSendingWarrantyChat || (!warrantyChatInputs[lic.id]?.text?.trim() && !warrantyChatInputs[lic.id]?.file)} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl shadow-md font-black flex items-center gap-2 m-1 disabled:opacity-50">
+                                    <span className="md:hidden">Enviar a Innotrev</span><Send size={18} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-16 text-slate-400 flex flex-col items-center">
+                        <Factory size={64} className="mb-4 opacity-20" />
+                        <h3 className="text-xl font-black text-slate-600 mb-1">Sin expediente</h3>
+                        <p className="text-sm font-medium">Innotrev aún no ha subido tu póliza oficial.</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </motion.div>

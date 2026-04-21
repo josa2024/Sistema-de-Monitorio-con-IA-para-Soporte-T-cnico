@@ -2,15 +2,16 @@ import json
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
-from datetime import datetime
+from datetime import datetime, date
 from pydantic import BaseModel
+import random
 
 # Importamos las dependencias de roles
 from app.api import deps
 from app.models.roles import RoleEnum
 from app.models.ticket import Ticket, TicketLog, ComentarioTicket, TicketStatus, TicketPriority
 from app.models.user_models import User
-from app.models.equipment_models import Equipo
+from app.models.equipment_models import Equipo, StatusEquipo, GarantiaLicencia, TipoGarantia # 🔥 IMPORTAMOS GarantiaLicencia
 from app.schemas.comment import CommentCreate, CommentResponse
 from app.schemas.ticket import TicketCreate, TicketUpdate, TicketResponse, TicketLogResponse, TicketAssign
 from app.services.ticket_service import TicketService
@@ -30,7 +31,6 @@ class TicketCasualCreate(BaseModel):
 async def create_casual_ticket(
     *, db: Session = Depends(deps.get_db), ticket_in: TicketCasualCreate
 ) -> Any:
-    # Ruta pública (sin Depends(get_current_active_user)) para usuarios no logueados
     try:
         fallback_user = db.query(User).filter(User.role_id.in_([1, 2])).first()
         if not fallback_user:
@@ -107,15 +107,11 @@ def read_tickets(
     estado: Optional[TicketStatus] = None,
     current_user: User = Depends(deps.get_current_active_user) 
 ) -> Any:
-    """ Lectura de tickets: Admin, Ventas y Soporte ven todos. Clientes ven los suyos. """
     query = db.query(Ticket).options(joinedload(Ticket.cliente), joinedload(Ticket.tecnico))
-    
     if current_user.role.nombre not in [RoleEnum.ADMIN, RoleEnum.VENTAS, RoleEnum.TECNICO]:
         query = query.filter(Ticket.cliente_id == current_user.id)
-        
     if estado:
         query = query.filter(Ticket.status == estado)
-        
     return query.offset(skip).limit(limit).all()
 
 @router.get("/{ticket_id}", response_model=TicketResponse)
@@ -123,41 +119,27 @@ def read_ticket(*, db: Session = Depends(deps.get_db), ticket_id: int, current_u
     ticket = db.query(Ticket).options(joinedload(Ticket.cliente), joinedload(Ticket.tecnico)).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="El ticket no existe")
-        
-    # Seguridad: Si es cliente, asegurar que el ticket sea suyo
     if current_user.role.nombre == RoleEnum.CLIENTE and ticket.cliente_id != current_user.id:
          raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a este ticket.")
-         
     return ticket
 
-# CAMBIO AQUÍ: Solo ADMIN y SOPORTE TÉCNICO pueden editar tickets
 @router.patch("/{ticket_id}", response_model=TicketResponse, dependencies=[Depends(deps.require_admin_or_tecnico)])
 def update_ticket(
-    *,
-    db: Session = Depends(deps.get_db),
-    ticket_id: int,
-    ticket_in: TicketUpdate,
-    current_user: User = Depends(deps.get_current_active_user),
+    *, db: Session = Depends(deps.get_db), ticket_id: int, ticket_in: TicketUpdate, current_user: User = Depends(deps.get_current_active_user),
 ) -> Any:
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
+    if not ticket: raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket no encontrado")
 
     update_data = ticket_in.dict(exclude_unset=True)
-
     normalized_update = {}
     for field, value in update_data.items():
         real_field = "status" if field == "estado" else field
         normalized_update[real_field] = value
 
-    old_values = {
-        k: (v.value if hasattr(v, 'value') else v)
-        for k, v in {field: getattr(ticket, field) for field in normalized_update.keys()}.items()
-    }
+    old_values = {k: (v.value if hasattr(v, 'value') else v) for k, v in {field: getattr(ticket, field) for field in normalized_update.keys()}.items()}
 
     def to_serializable(value):
-        if isinstance(value, datetime):
-            return value.isoformat()
+        if isinstance(value, datetime): return value.isoformat()
         return value
 
     old_values_safe = {k: to_serializable(v) for k, v in old_values.items()}
@@ -173,13 +155,11 @@ def update_ticket(
     db.refresh(ticket)
     return ticket
 
-# CAMBIO AQUÍ: Clientes, Admin y Soporte pueden comentar. VENTAS no puede.
 @router.post("/{ticket_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
 def create_comment(
     *, db: Session = Depends(deps.get_db), ticket_id: int, comment_in: CommentCreate, current_user: User = Depends(deps.get_current_active_user), ticket_service: TicketService = Depends(TicketService)
 ) -> Any:
-    if current_user.role.nombre == RoleEnum.VENTAS:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El rol de Ventas no puede comentar tickets.")
+    if current_user.role.nombre == RoleEnum.VENTAS: raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El rol de Ventas no puede comentar tickets.")
     return ticket_service.add_comment(db=db, ticket_id=ticket_id, comment_in=comment_in, current_user=current_user)
 
 @router.get("/{ticket_id}/comments", response_model=List[CommentResponse])
@@ -188,9 +168,59 @@ def read_comments(
 ) -> Any:
     return ticket_service.list_comments(db=db, ticket_id=ticket_id, current_user=current_user)
 
-# CAMBIO AQUÍ: Asignación exclusiva para Admin y Soporte
 @router.patch("/{ticket_id}/assign", response_model=TicketResponse, dependencies=[Depends(deps.require_admin_or_tecnico)])
 async def assign_ticket(
     *, db: Session = Depends(deps.get_db), ticket_id: int, assign_data: TicketAssign, current_user: User = Depends(deps.get_current_active_user), ticket_service: TicketService = Depends(TicketService)
 ) -> Any:
     return await ticket_service.assign_ticket(db=db, ticket_id=ticket_id, assign_data=assign_data, current_user=current_user)
+
+@router.post("/{ticket_id}/escalate", response_model=TicketResponse, dependencies=[Depends(deps.require_admin_or_tecnico)])
+async def escalate_ticket_to_warranty(
+    *, db: Session = Depends(deps.get_db), ticket_id: int, current_user: User = Depends(deps.get_current_active_user)
+) -> Any:
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket: raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    equipo = db.query(Equipo).filter(Equipo.id == ticket.equipo_id).first()
+    if not equipo: raise HTTPException(status_code=404, detail="Equipo asociado no encontrado.")
+
+    equipo.status = StatusEquipo.FALLA_REPORTADA
+
+    # 🔥 AUTO-GENERAR EXPEDIENTE DE GARANTÍA SI NO EXISTE
+    garantia = db.query(GarantiaLicencia).filter(GarantiaLicencia.equipo_id == equipo.id).first()
+    if not garantia:
+        random_suffix = str(random.randint(1000, 9999))
+        garantia = GarantiaLicencia(
+            equipo_id=equipo.id,
+            tipo=TipoGarantia.HARDWARE,
+            nombre_software="Expediente de Revisión Técnica",
+            folio=f"REV-{datetime.now().strftime('%Y%m')}-{random_suffix}",
+            fecha_inicio=date.today(),
+            fecha_vencimiento=date.today(),
+            is_active=True,
+            ejecutivo_cargo=current_user.nombre or current_user.email
+        )
+        db.add(garantia)
+
+    old_status = ticket.status
+    ticket.status = TicketStatus.RESUELTO
+
+    comentario = ComentarioTicket(
+        ticket_id=ticket.id, autor_id=current_user.id,
+        contenido="🚨 DIAGNÓSTICO CONCLUIDO: Se determinó que el problema es una falla de hardware. El caso ha sido cerrado en Soporte Técnico y escalado automáticamente al departamento de Logística y Garantías para su revisión física."
+    )
+    db.add(comentario)
+
+    log_db = TicketLog(
+        ticket_id=ticket.id, usuario_id=current_user.id, accion="ESCALADO_GARANTIA",
+        detalles={"antes": {"status": old_status.value if hasattr(old_status, 'value') else old_status}, "despues": {"status": "RESUELTO", "equipo_status": "FALLA_REPORTADA"}}
+    )
+    db.add(log_db)
+
+    db.commit()
+    db.refresh(ticket)
+
+    from app.core.websockets import manager
+    await manager.broadcast({"evento": "EQUIPO_RECEPCIONADO", "ticket_id": ticket.id, "equipo_id": equipo.id, "status": "FALLA_REPORTADA"})
+
+    return ticket
