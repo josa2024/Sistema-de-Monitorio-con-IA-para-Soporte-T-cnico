@@ -7,7 +7,7 @@ services:
     container_name: innotrev_db
     restart: always
     env_file:
-      - .env
+      - ./backend/.env
     ports:
       - "5432:5432"
     healthcheck:

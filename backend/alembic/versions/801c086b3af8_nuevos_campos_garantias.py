@@ -1,7 +1,7 @@
 """nuevos_campos_garantias
 
 Revision ID: 801c086b3af8
-Revises: 90139a3fccb6
+Revises: dd5898583ebc
 Create Date: 2026-04-09 05:02:09.330026
 
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '801c086b3af8'
-down_revision: Union[str, Sequence[str], None] = '90139a3fccb6'
+down_revision: Union[str, Sequence[str], None] = 'dd5898583ebc'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
