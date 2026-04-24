@@ -28,6 +28,9 @@ async def websocket_tickets_endpoint(
     HU-02: Monitoreo de Anomalías.
     Ruta final: ws://tu-dominio.com/api/v1/ws/tickets (dependiendo de tu prefijo global)
     """
+    # Aceptamos la conexión primero para poder cerrarla con un código específico si falla la auth
+    await websocket.accept()
+
     # 0. Validar Token y Rol del usuario
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -50,8 +53,8 @@ async def websocket_tickets_endpoint(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    # 1. Aceptamos e incluimos la conexión en el manager
-    await manager.connect(websocket)
+    # 1. Incluimos la conexión ya aceptada en el manager
+    manager.active_connections.append(websocket)
     logger.info(f"Técnico '{user.email}' (ID: {user.id}) conectado al WebSocket de tickets.")
     
     try:

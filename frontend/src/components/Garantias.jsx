@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ShieldCheck, Download, X, Clock, AlertTriangle, User, Calendar, Tag, Factory, Image as ImageIcon, Search, Trash2, Edit3, MessageCircle, Paperclip, Send, FileText, FilterX, Activity } from 'lucide-react';
+import { ShieldCheck, Download, X, Clock, AlertTriangle, User, Calendar, Tag, Factory, Image as ImageIcon, Search, Trash2, Edit3, MessageCircle, Paperclip, Send, FileText, FilterX, Activity, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuthHeaders } from '../services/api';
 
@@ -95,6 +95,22 @@ const Garantias = () => {
       const res = await fetch(`http://localhost:8000/api/v1/equipo/${equipmentId}`, { method: 'DELETE', headers: getAuthHeaders() });
       if (!res.ok) throw new Error("No se pudo eliminar el producto.");
       alert("✅ Producto eliminado."); fetchEquipos(); 
+    } catch (error) { alert("❌ Error: " + error.message); }
+  };
+
+  const handleRestoreProtected = async (e, equipmentId, modelo) => {
+    e.stopPropagation(); 
+    if(!window.confirm(`¿Confirmas que la falla del equipo "${modelo}" ha sido resuelta? El estado cambiará a "Protegido".`)) return;
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/equipo/${equipmentId}`, {
+        method: 'PUT',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'INSTALADO' })
+      });
+      if (!res.ok) throw new Error("No se pudo actualizar el estado del equipo.");
+      
+      alert("✅ Equipo restaurado al estado Protegido.");
+      fetchEquipos(); 
     } catch (error) { alert("❌ Error: " + error.message); }
   };
 
@@ -207,7 +223,12 @@ const Garantias = () => {
                   <div className={`${isDamaged ? 'bg-red-600' : 'bg-blue-600'} text-white p-3 rounded-2xl shadow-md`}>{isDamaged ? <AlertTriangle size={24} /> : <ShieldCheck size={24} />}</div>
                   <div className="flex items-center gap-2">
                     {isDamaged ? <span className="text-[10px] font-black bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 uppercase tracking-widest text-center">Revisión<br/>Técnica</span> : <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 uppercase tracking-widest">Protegido</span>}
-                    {canModify && <button onClick={(e) => handleDeleteEquipment(e, eq.id, eq.modelo)} className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all"><Trash2 size={18} /></button>}
+                    <div className="flex gap-2">
+                      {canModify && isDamaged && (
+                        <button onClick={(e) => handleRestoreProtected(e, eq.id, eq.modelo)} className="p-2.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl transition-all border border-emerald-100" title="Restaurar a Protegido"><CheckCircle2 size={18} /></button>
+                      )}
+                      {canModify && <button onClick={(e) => handleDeleteEquipment(e, eq.id, eq.modelo)} className="p-2.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all"><Trash2 size={18} /></button>}
+                    </div>
                   </div>
                 </div>
                 <h3 className="font-black text-[#0b1437] text-xl mb-1">{eq.modelo}</h3>

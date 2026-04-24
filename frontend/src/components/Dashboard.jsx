@@ -20,6 +20,13 @@ const Dashboard = () => {
   const [scheduledDate, setScheduledDate] = useState('');
   const [newComment, setNewComment] = useState('');
 
+  const handleAuthError = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userName');
+    window.location.href = '/'; 
+  }, []);
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'INSTALADO': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
@@ -49,13 +56,15 @@ const Dashboard = () => {
       if (eqResponse.ok) { 
         const eqData = await eqResponse.json(); 
         setEquipmentList(Array.isArray(eqData) ? eqData : []); 
+      } else if (eqResponse.status === 401) {
+        handleAuthError();
       }
     } catch (error) { console.warn("Aviso: No se pudieron cargar los equipos."); }
 
     try {
       const licResponse = await fetch(`http://localhost:8000/api/v1/licencias/dashboard/expiring?days=30&t=${Date.now()}`, { headers });
       if (licResponse.ok) setExpiringLicenses(await licResponse.json());
-      else if (licResponse.status === 401) console.error("Token inválido o expirado");
+      else if (licResponse.status === 401) handleAuthError();
     } catch (error) { console.warn("Aviso: El endpoint de licencias devolvió error (CORS/404)."); }
 
     try {
@@ -70,11 +79,11 @@ const Dashboard = () => {
         tktData.forEach(ticket => { const catName = ticket.categoria || 'General / Otro'; categoryCounts[catName] = (categoryCounts[catName] || 0) + 1; });
         setChartData(Object.keys(categoryCounts).map(name => ({ name, fallas: categoryCounts[name] })));
       }
-      else if (tktResponse.status === 401) console.error("Token inválido o expirado para tickets");
+      else if (tktResponse.status === 401) handleAuthError();
     } catch (error) { console.warn("Aviso: No se pudieron cargar los tickets."); }
     
     setIsLoading(false);
-  }, []);
+  }, [handleAuthError]);
 
   useEffect(() => {
     fetchData();
@@ -112,8 +121,11 @@ const Dashboard = () => {
           fetchData();
         }
       };
-      socket.onclose = () => {
-        if (!shouldReconnect) return;
+      socket.onclose = (event) => {
+        if (!shouldReconnect || event.code === 1008) {
+          if (event.code === 1008) handleAuthError();
+          return;
+        }
         const delay = Math.min(30000, 1000 * Math.pow(2, reconnectAttempts));
         reconnectAttempts = Math.min(reconnectAttempts + 1, 10);
         setTimeout(initWebSocket, delay);
@@ -122,7 +134,7 @@ const Dashboard = () => {
 
     initWebSocket();
     return () => { shouldReconnect = false; if (socket && socket.readyState === WebSocket.OPEN) { socket.close(); } };
-  }, [fetchData]);
+  }, [fetchData, handleAuthError]);
 
   const handleOpenTicket = async (ticket) => {
     setSelectedTicket(ticket);
