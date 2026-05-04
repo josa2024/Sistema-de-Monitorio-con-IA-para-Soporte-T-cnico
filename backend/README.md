@@ -1,6 +1,6 @@
 # Backend del Sistema de Soporte Innotrev
 
-Este proyecto contiene el backend para el sistema de monitoreo y soporte técnico de Innotrev. Ha sido desarrollado con **Python 3.13**, **FastAPI**, **SQLAlchemy** y **PostgreSQL**, e incluye procesamiento de tareas en segundo plano con **Celery** y **Redis**.
+Este proyecto contiene el backend para el sistema de monitoreo y soporte técnico de Innotrev. Ha sido desarrollado con **Python 3.13**, **FastAPI**, **SQLAlchemy** y **PostgreSQL**, e incluye procesamiento de tareas en segundo plano con **Celery** y **Redis**, comunicación en tiempo real vía **WebSockets**, y módulos de Inteligencia Artificial (**LangChain**, **FAISS**, **Ollama**) para asistencia automatizada.
 
 ## Arquitectura
 
@@ -10,9 +10,10 @@ El backend sigue un diseño de **Monolito Modular con Arquitectura en Capas**, l
 -   **`app/models`**: Modelos de datos (ORM de SQLAlchemy) que definen la estructura de la base de datos.
 -   **`app/schemas`**: Esquemas de Pydantic para la validación de datos de entrada/salida de la API.
 -   **`app/repositories`**: Capa de Acceso a Datos que abstrae las operaciones CRUD con la base de datos.
--   **`app/services`**: Capa de Lógica de Negocio donde residen las reglas y operaciones complejas.
+-   **`app/services`**: Capa de Lógica de Negocio donde residen las reglas y operaciones complejas, incluyendo lógica de WebSockets y motores RAG de IA (ej. lectura de `soluciones_clientes.txt`).
 -   **`app/api/endpoints`**: Capa de Presentación que define los endpoints HTTP de la API.
 -   **`app/tasks`**: Tareas de Celery que se ejecutan en segundo plano.
+-   **`uploads/`**: Estructura de directorios generada dinámicamente para el almacenamiento de archivos estáticos (licencias, evidencias y tickets).
 
 ## Requisitos Previos
 
@@ -64,6 +65,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES=43200
 # URL del broker de Celery
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Configuración de IA (Ollama local o remoto)
+# OLLAMA_BASE_URL=http://localhost:11434
 ```
 > **Tip**: Genera una `SECRET_KEY` segura con:
 > `python -c "import secrets; print(secrets.token_hex(32))"`
