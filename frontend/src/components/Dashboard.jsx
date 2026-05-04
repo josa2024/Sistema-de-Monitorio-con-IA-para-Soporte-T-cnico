@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, CheckCircle2, Server, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Bot, Video, LayoutDashboard, Cpu, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Activity, CheckCircle2, Server, Ticket, ArrowRight, X, MessageSquare, User, Briefcase, CalendarClock, Bot, Video, LayoutDashboard, Cpu, ShieldAlert, AlertTriangle, Wrench } from 'lucide-react'; // 🔥 IMPORTÉ Wrench
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAuthHeaders } from '../services/api';
@@ -32,7 +32,7 @@ const Dashboard = () => {
       case 'INSTALADO': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       case 'EN_TRANSITO': return 'bg-amber-100 text-amber-700 border-amber-200';
       case 'FALLA_REPORTADA': return 'bg-red-100 text-red-700 border-red-200';
-      case 'MANTENIMIENTO': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'MANTENIMIENTO': return 'bg-slate-200 text-slate-700 border-slate-300'; // 🛠️ GRIS PARA MANTENIMIENTO
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
@@ -71,7 +71,8 @@ const Dashboard = () => {
       const tktResponse = await fetch(`http://localhost:8000/api/v1/tickets/?t=${Date.now()}`, { headers });
       if (tktResponse.ok) {
         const tktData = await tktResponse.json();
-        const activeTickets = tktData.filter(t => t.status === 'ABIERTO' || t.status === 'EN_PROGRESO');
+        // 🔥 ACTUALIZADO: AHORA EL DASHBOARD TAMBIÉN MUESTRA LOS TICKETS EN MANTENIMIENTO
+        const activeTickets = tktData.filter(t => t.status === 'ABIERTO' || t.status === 'EN_PROGRESO' || t.status === 'MANTENIMIENTO');
         activeTickets.sort((a, b) => { const val = { 'CRITICA': 4, 'ALTA': 3, 'MEDIA': 2, 'BAJA': 1 }; return val[b.prioridad] - val[a.prioridad]; });
         setTicketsList(activeTickets);
 
@@ -117,6 +118,11 @@ const Dashboard = () => {
         }
         if (data.evento === "GARANTIA_ACTIVADA") {
           setLiveAlert(`Garantía activada para equipo ID ${data.equipo_id}`);
+          setTimeout(() => setLiveAlert(null), 6000);
+          fetchData();
+        }
+        if (data.evento === "MANTENIMIENTO_ACTUALIZADO") {
+          setLiveAlert(`Mantenimiento actualizado para equipo ID ${data.equipo_id}`);
           setTimeout(() => setLiveAlert(null), 6000);
           fetchData();
         }
@@ -178,7 +184,6 @@ const Dashboard = () => {
     } finally { setIsProcessing(false); }
   };
 
-  // 🔥 NUEVA FUNCIÓN: ESCALAR A GARANTÍA
   const handleEscalateToWarranty = async () => {
     if (!selectedTicket?.id) return;
     
@@ -197,6 +202,34 @@ const Dashboard = () => {
       }
       
       alert('✅ Ticket cerrado y escalado a Garantías exitosamente.');
+      await fetchData();
+      handleCloseModal();
+    } catch (error) {
+      alert(`❌ ${error.message}`);
+    } finally { 
+      setIsProcessing(false); 
+    }
+  };
+
+  // 🔥 NUEVA FUNCIÓN: ESCALAR A MANTENIMIENTO
+  const handleEscalateToMaintenance = async () => {
+    if (!selectedTicket?.id) return;
+    
+    if(!window.confirm("⚠️ ¿Deseas escalar este ticket a Mantenimiento?\n\nEl ticket y el equipo cambiarán su estado a MANTENIMIENTO físico/preventivo.")) return;
+
+    setIsProcessing(true);
+    const headers = getAuthHeaders();
+    try {
+      const response = await fetch(`http://localhost:8000/api/v1/tickets/${selectedTicket.id}/maintenance`, {
+        method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Error al escalar a mantenimiento');
+      }
+      
+      alert('✅ Ticket escalado a Mantenimiento exitosamente.');
       await fetchData();
       handleCloseModal();
     } catch (error) {
@@ -327,7 +360,7 @@ const Dashboard = () => {
                   </div>
                   
                   <div className="flex justify-between items-center">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${ticket.status === 'EN_PROGRESO' ? 'text-blue-600 bg-blue-50 px-2 py-1 rounded' : 'text-slate-400'}`}>{ticket.status.replace('_', ' ')}</span>
+                    <span className={`text-[10px] font-black uppercase tracking-widest ${ticket.status === 'EN_PROGRESO' ? 'text-blue-600 bg-blue-50 px-2 py-1 rounded' : ticket.status === 'MANTENIMIENTO' ? 'text-slate-600 bg-slate-200 px-2 py-1 rounded' : 'text-slate-400'}`}>{ticket.status.replace('_', ' ')}</span>
                     <button className="text-blue-600 font-black flex items-center gap-1 group-hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg text-xs transition-colors group-hover:bg-blue-100">Abrir Caso <ArrowRight size={14} /></button>
                   </div>
                 </motion.div>
@@ -437,7 +470,7 @@ const Dashboard = () => {
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     <span className="text-xs font-black text-blue-300 tracking-widest bg-blue-900/50 px-3 py-1 rounded-lg">TKT-{String(selectedTicket.id).padStart(4, '0')}</span>
                     <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${getPriorityBadge(selectedTicket.prioridad)}`}>{selectedTicket.prioridad}</span>
-                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${selectedTicket.status === 'ABIERTO' ? 'bg-white/10 text-white border-white/20' : 'bg-blue-500 text-white border-blue-400'}`}>{selectedTicket.status.replace('_', ' ')}</span>
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${selectedTicket.status === 'ABIERTO' ? 'bg-white/10 text-white border-white/20' : selectedTicket.status === 'MANTENIMIENTO' ? 'bg-slate-500 text-white border-slate-400' : 'bg-blue-500 text-white border-blue-400'}`}>{selectedTicket.status.replace('_', ' ')}</span>
                   </div>
                   <h2 className="text-2xl md:text-3xl font-black mb-1">{selectedTicket.titulo}</h2>
                   <p className="text-xs font-bold text-blue-200 flex items-center gap-1.5"><User size={14}/> Cliente: {selectedTicket.cliente?.nombre || selectedTicket.cliente?.email || 'Desconocido'}</p>
@@ -517,7 +550,7 @@ const Dashboard = () => {
                         <Briefcase size={18} /> Tomar Caso Ahora
                       </button>
                     </>
-                  ) : selectedTicket.status === 'EN_PROGRESO' && !selectedTicket.fecha_agendada ? (
+                  ) : (selectedTicket.status === 'EN_PROGRESO' || selectedTicket.status === 'MANTENIMIENTO') && !selectedTicket.fecha_agendada ? (
                     <div className="w-full flex flex-col md:flex-row md:items-center gap-4">
                       <div className="flex-1">
                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-2">Agendar Videollamada Técnica</label>
@@ -545,9 +578,15 @@ const Dashboard = () => {
                       )}
                       
                       {selectedTicket.status !== 'RESUELTO' && (
-                        <div className="flex flex-col md:flex-row items-center gap-3 ml-auto w-full md:w-auto">
+                        <div className="flex flex-col md:flex-row items-center gap-3 ml-auto w-full md:w-auto flex-wrap justify-end">
                           
-                          {/* 🔥 NUEVO BOTÓN: ESCALAR A GARANTÍA */}
+                          {/* 🔥 NUEVO BOTÓN: ESCALAR A MANTENIMIENTO */}
+                          {selectedTicket.status !== 'MANTENIMIENTO' && (
+                            <button onClick={handleEscalateToMaintenance} disabled={isProcessing} className="w-full md:w-auto bg-slate-100 hover:bg-slate-600 text-slate-600 hover:text-white border border-slate-200 hover:border-transparent px-6 py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                              <Wrench size={18} /> Escalar a Mantenimiento
+                            </button>
+                          )}
+
                           <button onClick={handleEscalateToWarranty} disabled={isProcessing} className="w-full md:w-auto bg-orange-100 hover:bg-orange-500 text-orange-700 hover:text-white border border-orange-200 hover:border-transparent px-6 py-3.5 rounded-2xl text-sm font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50">
                             <AlertTriangle size={18} /> Escalar a Garantía
                           </button>

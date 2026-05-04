@@ -40,7 +40,6 @@ class Equipo(Base):
     status = Column(Enum(StatusEquipo), default=StatusEquipo.EN_TRANSITO)
     fecha_salida_sucursal = Column(DateTime, default=datetime.utcnow)
     
-    # --- RELACIONES CON RUTAS ABSOLUTAS ---
     cliente = relationship("app.models.user_models.User", back_populates="equipos")
     seguimiento = relationship("app.models.equipment_models.SeguimientoInstalacion", uselist=False, back_populates="equipo")
     garantias = relationship("app.models.equipment_models.GarantiaLicencia", back_populates="equipo")
@@ -72,7 +71,7 @@ class SeguimientoInstalacion(Base):
     equipo = relationship("app.models.equipment_models.Equipo", back_populates="seguimiento")
 
 
-# 🔥 NUEVA TABLA PARA LOS COMENTARIOS DEL CHAT
+
 class LicenciaComment(Base):
     __tablename__ = "licencia_comments"
 
@@ -108,7 +107,6 @@ class GarantiaLicencia(Base):
     
     equipo = relationship("app.models.equipment_models.Equipo", back_populates="garantias")
     
-    # 🔥 RELACIÓN CON LOS COMENTARIOS
     comentarios = relationship("LicenciaComment", back_populates="licencia", cascade="all, delete-orphan")
 
 

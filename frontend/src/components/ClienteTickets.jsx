@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Ticket, MessageSquare, FileText, X, AlertTriangle, Search, Send, RefreshCw, CheckCircle2, Clock, FilterX, User, Bot, ShieldCheck } from 'lucide-react';
+import { Ticket, MessageSquare, FileText, X, AlertTriangle, Search, Send, RefreshCw, CheckCircle2, Clock, FilterX, User, Bot, ShieldCheck, Wrench } from 'lucide-react'; // 🔥 IMPORTAMOS Wrench
 import { getAuthHeaders } from '../services/api';
 import { jsPDF } from 'jspdf';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -134,11 +134,12 @@ const ClienteTickets = () => {
     return matchStatus && matchSearch;
   });
 
-  // Estadísticas
+  // Estadísticas 🔥 AGREGAMOS MANTENIMIENTO
   const stats = {
     total: tickets.length,
     abiertos: tickets.filter(t => t.status === 'ABIERTO').length,
     progreso: tickets.filter(t => t.status === 'EN_PROGRESO').length,
+    mantenimiento: tickets.filter(t => t.status === 'MANTENIMIENTO').length,
     resueltos: tickets.filter(t => t.status === 'RESUELTO').length
   };
 
@@ -146,6 +147,7 @@ const ClienteTickets = () => {
     switch(status) {
       case 'ABIERTO': return <span className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-amber-200 flex items-center gap-1.5 w-max"><AlertTriangle size={14} className="text-amber-500 animate-pulse"/> Abierto</span>;
       case 'EN_PROGRESO': return <span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-blue-200 flex items-center gap-1.5 w-max"><Clock size={14}/> En Progreso</span>;
+      case 'MANTENIMIENTO': return <span className="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-slate-300 flex items-center gap-1.5 w-max"><Wrench size={14}/> Mantenimiento</span>; // 🔥 NUEVO BADGE GRIS
       case 'RESUELTO': return <span className="bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-emerald-200 flex items-center gap-1.5 w-max"><CheckCircle2 size={14}/> Resuelto</span>;
       default: return <span className="bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider border border-slate-200 w-max">{status}</span>;
     }
@@ -175,9 +177,9 @@ const ClienteTickets = () => {
         )}
       </div>
 
-      {/* MÉTRICAS / FILTROS */}
+      {/* MÉTRICAS / FILTROS 🔥 AJUSTADO A 5 COLUMNAS (xl:grid-cols-5) */}
       {tickets.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
           <div 
             onClick={() => setActiveFilter('ALL')}
             className={`cursor-pointer p-6 rounded-3xl border shadow-sm flex items-center gap-4 transition-all duration-300 ${activeFilter === 'ALL' ? 'bg-slate-800 border-slate-800 ring-4 ring-slate-800/10 scale-105' : 'bg-white border-slate-100 hover:shadow-md hover:border-slate-300'}`}
@@ -200,6 +202,15 @@ const ClienteTickets = () => {
           >
             <div className={`p-4 rounded-2xl ${activeFilter === 'EN_PROGRESO' ? 'bg-blue-600 text-white shadow-md' : 'bg-blue-50 text-blue-600'}`}><Clock size={24} /></div>
             <div><p className={`text-sm font-bold ${activeFilter === 'EN_PROGRESO' ? 'text-blue-700' : 'text-slate-400'}`}>En Progreso</p><p className="text-2xl font-black text-[#0b1437]">{stats.progreso}</p></div>
+          </div>
+
+          {/* 🔥 NUEVA TARJETA: MANTENIMIENTO */}
+          <div 
+            onClick={() => setActiveFilter('MANTENIMIENTO')}
+            className={`cursor-pointer p-6 rounded-3xl border shadow-sm flex items-center gap-4 transition-all duration-300 ${activeFilter === 'MANTENIMIENTO' ? 'bg-slate-200 border-slate-400 ring-4 ring-slate-400/20 scale-105' : 'bg-white border-slate-100 hover:shadow-md hover:border-slate-300'}`}
+          >
+            <div className={`p-4 rounded-2xl ${activeFilter === 'MANTENIMIENTO' ? 'bg-slate-600 text-white shadow-md' : 'bg-slate-100 text-slate-600'}`}><Wrench size={24} /></div>
+            <div><p className={`text-sm font-bold ${activeFilter === 'MANTENIMIENTO' ? 'text-slate-800' : 'text-slate-400'}`}>En Mantenimiento</p><p className="text-2xl font-black text-[#0b1437]">{stats.mantenimiento}</p></div>
           </div>
 
           <div 
@@ -298,7 +309,12 @@ const ClienteTickets = () => {
                {/* CABECERA DEL MODAL */}
                <div className="p-6 md:p-8 border-b border-slate-100 flex flex-col md:flex-row md:justify-between md:items-center bg-slate-50 shrink-0 gap-4">
                  <div className="flex items-center gap-4">
-                   <div className={`p-4 rounded-2xl shadow-sm text-white ${selectedTicket.status === 'ABIERTO' ? 'bg-amber-500 shadow-amber-500/20' : selectedTicket.status === 'EN_PROGRESO' ? 'bg-blue-600 shadow-blue-600/20' : 'bg-emerald-500 shadow-emerald-500/20'}`}>
+                   <div className={`p-4 rounded-2xl shadow-sm text-white ${
+                     selectedTicket.status === 'ABIERTO' ? 'bg-amber-500 shadow-amber-500/20' : 
+                     selectedTicket.status === 'EN_PROGRESO' ? 'bg-blue-600 shadow-blue-600/20' : 
+                     selectedTicket.status === 'MANTENIMIENTO' ? 'bg-slate-600 shadow-slate-600/20' : 
+                     'bg-emerald-500 shadow-emerald-500/20'
+                    }`}>
                      <Ticket size={28}/>
                    </div>
                    <div>
@@ -318,11 +334,13 @@ const ClienteTickets = () => {
                         className={`text-xs font-black uppercase tracking-wider px-4 py-2.5 rounded-xl border outline-none cursor-pointer transition-colors ${
                           selectedTicket.status === 'ABIERTO' ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' :
                           selectedTicket.status === 'EN_PROGRESO' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' :
+                          selectedTicket.status === 'MANTENIMIENTO' ? 'bg-slate-200 text-slate-800 border-slate-300 hover:bg-slate-300' :
                           'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                         }`}
                      >
                        <option value="ABIERTO">Abierto / Nuevo</option>
                        <option value="EN_PROGRESO">En Progreso / Revisión</option>
+                       <option value="MANTENIMIENTO">Mantenimiento Físico</option>
                        <option value="RESUELTO">Marcado como Resuelto</option>
                      </select>
                    ) : (
@@ -353,7 +371,7 @@ const ClienteTickets = () => {
                  {/* Historial de Respuestas */}
                  {ticketComments.length > 0 ? (
                    ticketComments.map((comment, idx) => {
-                     const isSupport = comment.autor?.role_id !== 4; // 4 Asumiendo que es CLIENTE, ajusta según tu DB. Si no, usa el nombre del rol.
+                     const isSupport = comment.autor?.role_id !== 4; // Asumiendo que 4 es CLIENTE
                      
                      return (
                        <div key={idx} className={`flex gap-4 max-w-[85%] ${isSupport ? 'self-end flex-row-reverse' : 'self-start'}`}>

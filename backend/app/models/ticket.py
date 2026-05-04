@@ -8,6 +8,7 @@ from app.core.database import Base
 class TicketStatus(str, enum.Enum):
     ABIERTO = "ABIERTO"
     EN_PROGRESO = "EN_PROGRESO"
+    MANTENIMIENTO = "MANTENIMIENTO" # 🔥 NUEVO ESTADO AGREGADO
     RESUELTO = "RESUELTO"
     CERRADO = "CERRADO"
 

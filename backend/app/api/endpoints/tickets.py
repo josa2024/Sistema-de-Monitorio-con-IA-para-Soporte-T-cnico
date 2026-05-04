@@ -224,3 +224,44 @@ async def escalate_ticket_to_warranty(
     await manager.broadcast({"evento": "EQUIPO_RECEPCIONADO", "ticket_id": ticket.id, "equipo_id": equipo.id, "status": "FALLA_REPORTADA"})
 
     return ticket
+
+
+# ==================================================
+# 🔥 NUEVA RUTA: ESCALAR TICKET A MANTENIMIENTO
+# ==================================================
+@router.post("/{ticket_id}/maintenance", response_model=TicketResponse, dependencies=[Depends(deps.require_admin_or_tecnico)])
+async def escalate_ticket_to_maintenance(
+    *, db: Session = Depends(deps.get_db), ticket_id: int, current_user: User = Depends(deps.get_current_active_user)
+) -> Any:
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket: raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    equipo = db.query(Equipo).filter(Equipo.id == ticket.equipo_id).first()
+    if not equipo: raise HTTPException(status_code=404, detail="Equipo asociado no encontrado.")
+
+    # El equipo también pasa a estado MANTENIMIENTO
+    equipo.status = StatusEquipo.MANTENIMIENTO
+
+    old_status = ticket.status
+    # Cambiamos el estado del ticket al nuevo estado MANTENIMIENTO
+    ticket.status = TicketStatus.MANTENIMIENTO
+
+    comentario = ComentarioTicket(
+        ticket_id=ticket.id, autor_id=current_user.id,
+        contenido="🔧 MANTENIMIENTO REQUERIDO: El equipo requiere ajustes, limpieza o revisión física preventiva. El ticket ha sido transferido al departamento de Mantenimiento."
+    )
+    db.add(comentario)
+
+    log_db = TicketLog(
+        ticket_id=ticket.id, usuario_id=current_user.id, accion="ESCALADO_MANTENIMIENTO",
+        detalles={"antes": {"status": old_status.value if hasattr(old_status, 'value') else old_status}, "despues": {"status": "MANTENIMIENTO", "equipo_status": "MANTENIMIENTO"}}
+    )
+    db.add(log_db)
+
+    db.commit()
+    db.refresh(ticket)
+
+    from app.core.websockets import manager
+    await manager.broadcast({"evento": "MANTENIMIENTO_ACTUALIZADO", "ticket_id": ticket.id, "equipo_id": equipo.id, "status": "MANTENIMIENTO"})
+
+    return ticket

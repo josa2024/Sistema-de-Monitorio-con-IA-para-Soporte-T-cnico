@@ -58,9 +58,7 @@ class EquipmentService:
                     detail="Error al guardar la evidencia fotográfica."
                 )
 
-        # ==========================================================
-        # 🔥 NUEVA LÓGICA: DETECCIÓN DE DAÑOS O APERTURA
-        # ==========================================================
+
         estado_empaque_upper = reception_data.estado_empaque.strip().upper()
         # Si no encendió, o si el cliente reportó que venía abierto/dañado/roto
         llegó_dañado = (

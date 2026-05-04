@@ -100,30 +100,32 @@ const Licencias = () => {
 
       {/* ALERTAS DE VENCIMIENTO */}
       {expiringLicenses.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 p-6 rounded-3xl flex flex-col md:flex-row items-start md:items-center gap-6 shadow-sm relative overflow-hidden shrink-0">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl"></div>
-          <div className="bg-red-100 text-red-600 p-4 rounded-2xl shrink-0 relative z-10">
-            <AlertTriangle size={28} className="animate-pulse" />
-          </div>
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 p-4 rounded-2xl flex flex-col shadow-sm relative overflow-hidden shrink-0">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl pointer-events-none"></div>
           <div className="w-full relative z-10">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-red-900 font-black text-sm uppercase tracking-widest">Atención Requerida: Renovaciones Próximas ({expiringLicenses.length})</h3>
+            <div className="flex justify-between items-center mb-1">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-100 text-red-600 p-2 rounded-xl shrink-0">
+                  <AlertTriangle size={18} className="animate-pulse" />
+                </div>
+                <h3 className="text-red-900 font-black text-xs md:text-sm uppercase tracking-widest">Renovaciones Próximas ({expiringLicenses.length})</h3>
+              </div>
               <button onClick={() => setIsAlertsMinimized(!isAlertsMinimized)} className="text-red-500 hover:text-red-700 bg-red-100/50 hover:bg-red-200 p-1.5 rounded-lg transition-colors shrink-0">
                 {isAlertsMinimized ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
               </button>
             </div>
             <AnimatePresence initial={false}>
               {!isAlertsMinimized && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="flex gap-3 overflow-x-auto pb-2 mt-2 custom-scrollbar">
                   {expiringLicenses.map(lic => (
-                    <div key={lic.id} className="bg-white border border-red-100 p-4 rounded-2xl flex flex-col justify-between shadow-sm min-w-[250px] shrink-0 hover:shadow-md transition-all hover:-translate-y-1">
+                    <div key={lic.id} className="bg-white border border-red-100 p-3 rounded-xl flex flex-col justify-between shadow-sm min-w-[220px] shrink-0 hover:shadow-md transition-all hover:-translate-y-0.5">
                       <div className="flex justify-between items-start mb-2">
-                        <p className="text-sm font-black text-[#0b1437] truncate">{lic.nombre_software}</p>
-                        <span className="text-[10px] bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-black">EQ. #{lic.equipo_id}</span>
+                        <p className="text-xs font-black text-[#0b1437] truncate pr-2">{lic.nombre_software}</p>
+                        <span className="text-[9px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 font-black">EQ. #{lic.equipo_id}</span>
                       </div>
-                      <div className="flex items-center gap-2 mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
-                        <CalendarClock size={14} className="text-red-600"/>
-                        <p className="text-xs text-red-700 font-black tracking-wider">VENCE: {new Date(lic.fecha_vencimiento).toLocaleDateString()}</p>
+                      <div className="flex items-center gap-1.5 mt-1 bg-red-50 px-2 py-1 rounded-md border border-red-100">
+                        <CalendarClock size={12} className="text-red-600"/>
+                        <p className="text-[10px] text-red-700 font-black tracking-wider">VENCE: {new Date(lic.fecha_vencimiento).toLocaleDateString()}</p>
                       </div>
                     </div>
                   ))}
