@@ -110,6 +110,17 @@ python create_user.py
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+## Configuración de Inteligencia Artificial (Ollama Local)
+
+El sistema utiliza Ollama junto con LangChain y FAISS para procesar la asistencia automatizada de forma local. Para que el agente de IA (chatbot RAG) funcione correctamente, sigue estos pasos:
+
+1. **Instalar Ollama:** Descarga e instala el motor de Ollama en tu máquina anfitriona desde su página oficial.
+2. **Descargar los modelos base:** Abre tu terminal y ejecuta los siguientes comandos para descargar el modelo de lenguaje principal (llama3.2) y el modelo para búsquedas vectoriales (nomic-embed-text), que son los requeridos por la aplicación:
+
+    ```bash
+    ollama run llama3.2
+    ollama pull nomic-embed-text
+
 ## Dockerfile Optimizado
 
 El `Dockerfile` del backend ha sido actualizado para mejorar la seguridad y la eficiencia:
