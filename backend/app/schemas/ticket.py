@@ -1,48 +1,69 @@
-from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
-from enum import Enum
+from pydantic import BaseModel
+from app.models.ticket import TicketStatus, TicketPriority
 
-# Replicamos los Enums para validación en Pydantic
-class TicketPriority(str, Enum):
-    BAJA = "BAJA"
-    MEDIA = "MEDIA"
-    ALTA = "ALTA"
-    CRITICA = "CRITICA"
+class UserSimple(BaseModel):
+    id: int
+    nombre: Optional[str] = None
+    email: str
+    class Config:
+        from_attributes = True
 
-class TicketStatus(str, Enum):
-    ABIERTO = "ABIERTO"
-    EN_PROGRESO = "EN_PROGRESO"
-    RESUELTO = "RESUELTO"
-    CERRADO = "CERRADO"
+class TicketLogResponse(BaseModel):
+    id: int
+    ticket_id: int
+    usuario_id: int
+    accion: str
+    detalles: Optional[Any] = None
+    fecha_creacion: datetime
+    class Config:
+        from_attributes = True
 
-class TicketCreate(BaseModel):
+class TicketBase(BaseModel):
     titulo: str
     descripcion: str
+    prioridad: TicketPriority = TicketPriority.MEDIA
+
+class TicketCreate(TicketBase):
+    cliente_id: int
     equipo_id: int
+    categoria: Optional[str] = "General"
 
 class TicketUpdate(BaseModel):
-    status: Optional[TicketStatus] = None
+    estado: Optional[TicketStatus] = None
     prioridad: Optional[TicketPriority] = None
+    fecha_agendada: Optional[datetime] = None
+
+class TicketStatusUpdate(BaseModel):
+    estado: TicketStatus
+
+class TicketAssign(BaseModel):
+    tecnico_id: int
+
+class CommentCreate(BaseModel):
+    contenido: str
+
+class CommentResponse(BaseModel):
+    id: int
+    ticket_id: int
+    autor_id: int
+    contenido: str
+    fecha_creacion: Optional[datetime] = None
+    class Config:
+        from_attributes = True
 
 class TicketResponse(TicketCreate):
     id: int
     status: TicketStatus
     prioridad: TicketPriority
-    fecha_creacion: datetime
-    cliente_id: int
-
-class CommentCreate(BaseModel):
-    contenido: str
-    # No pedimos ticket_id ni usuario_id aquí porque usualmente
-    # se obtienen de la URL y del token de sesión respectivamente.
-
-class CommentResponse(BaseModel):
-    id: int
-    contenido: str
-    fecha_creacion: datetime
-    ticket_id: int
-    usuario_id: int # Asumiendo que guardas quién hizo el comentario
-
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    fecha_agendada: Optional[datetime] = None
+    cliente_id: Optional[int] = None
+    tecnico_id: Optional[int] = None
+    cliente: Optional[UserSimple] = None
+    tecnico: Optional[UserSimple] = None
+    categoria: Optional[str] = "General"
     class Config:
         from_attributes = True

@@ -1,125 +1,118 @@
-# Backend de Innotrev
+# Backend del Sistema de Soporte Innotrev
 
-Este es el backend para el sistema Innotrev, construido con FastAPI. Incluye gestión de usuarios, roles, equipos, tickets con WebSockets y licencias.
+Este proyecto contiene el backend para el sistema de monitoreo y soporte técnico de Innotrev. Ha sido desarrollado con **Python 3.13**, **FastAPI**, **SQLAlchemy** y **PostgreSQL**, e incluye procesamiento de tareas en segundo plano con **Celery** y **Redis**, comunicación en tiempo real vía **WebSockets**, y módulos de Inteligencia Artificial (**LangChain**, **FAISS**, **Ollama**) para asistencia automatizada.
 
-## Ejecutando la aplicación
+## Arquitectura
 
-1.  **Instalar dependencias:**
+El backend sigue un diseño de **Monolito Modular con Arquitectura en Capas**, lo que facilita su mantenimiento y escalabilidad:
+
+-   **`app/core`**: Configuración central (variables de entorno), seguridad (JWT), y la configuración de la app de Celery.
+-   **`app/models`**: Modelos de datos (ORM de SQLAlchemy) que definen la estructura de la base de datos.
+-   **`app/schemas`**: Esquemas de Pydantic para la validación de datos de entrada/salida de la API.
+-   **`app/repositories`**: Capa de Acceso a Datos que abstrae las operaciones CRUD con la base de datos.
+-   **`app/services`**: Capa de Lógica de Negocio donde residen las reglas y operaciones complejas, incluyendo lógica de WebSockets y motores RAG de IA (ej. lectura de `soluciones_clientes.txt`).
+-   **`app/api/endpoints`**: Capa de Presentación que define los endpoints HTTP de la API.
+-   **`app/tasks`**: Tareas de Celery que se ejecutan en segundo plano.
+-   **`uploads/`**: Estructura de directorios generada dinámicamente para el almacenamiento de archivos estáticos (licencias, evidencias y tickets).
+
+## Requisitos Previos
+
+-   **Python 3.13** o superior.
+-   **Docker y Docker Compose** (método de ejecución recomendado).
+-   Un servidor PostgreSQL (solo si no se utiliza Docker).
+
+## 🚀 Ejecución con Docker (Recomendado)
+
+El proyecto está optimizado para un despliegue rápido y consistente en cualquier máquina con Docker.
+
+1.  **Configurar Variables de Entorno**:
+    Crea un archivo `.env` en la raíz de `innotrev-sistema/backend/`. Puedes usar el archivo `backend/.env.example` como plantilla.
+
+2.  **Levantar los servicios**:
+    Desde la raíz del proyecto (`innotrev-sistema/`), ejecuta el siguiente comando:
     ```bash
-    pip install -r requirements.txt
-    # Parche de compatibilidad para passlib:
-    pip install "bcrypt==3.2.2"
+    docker-compose up --build
     ```
+    Este comando orquestará todos los servicios definidos en `docker-compose.yml`:
+    -   `db`: La base de datos PostgreSQL.
+    -   `redis`: El broker de mensajes para Celery.
+    -   `backend`: La API principal de FastAPI.
+    -   `celery_worker`: Un worker que consume y ejecuta tareas asíncronas.
+    -   `celery_beat`: Un planificador que emite tareas en intervalos programados (ej. tareas CRON).
+    -   `frontend`: La aplicación cliente.
 
-2.  **Configurar la base de datos:**
-    - Asegúrate de tener un servidor PostgreSQL en ejecución.
-    - Crea una base de datos llamada `innotrev`.
-    - Crea un archivo `.env` en este directorio con el siguiente contenido, reemplazando las credenciales con las tuyas:
-      ```
-      DATABASE_URL=postgresql+psycopg2://user:password@localhost:5432/innotrev
-      SECRET_KEY=<your_secret_key>
-      ALGORITHM=HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES=43200
-      ```
-      Puedes generar una clave secreta usando `python -c "import secrets; print(secrets.token_hex(32))"`.
+Una vez levantado, la API estará disponible en `http://localhost:8000` y la documentación interactiva (Swagger UI) en `http://localhost:8000/docs`.
 
-3.  **Ejecutar migraciones de base de datos:**
-    ```bash
-    alembic upgrade head
-    ```
+## Configuración para Desarrollo Local (Sin Docker)
 
-4.  **Ejecutar la aplicación:**
-    ```bash
-    uvicorn app.main:app --reload
-    ```
-    La aplicación estará disponible en `http://127.0.0.1:8000`.
+### 1. Variables de Entorno
 
-## Creando un usuario con un rol específico
+Crea un archivo `.env` en `innotrev-sistema/backend/` con el siguiente contenido:
 
-Para probar los endpoints protegidos, necesitas crear un usuario con un rol específico en la base de datos. Puedes hacer esto ejecutando un script de Python.
+```env
+# URL de conexión a tu base de datos PostgreSQL
+DATABASE_URL=postgresql+psycopg2://innotrev_user:innotrev_password@localhost:5432/innotrev_db
 
-1.  **Crea un script `create_user.py` en el directorio `backend` con el siguiente contenido:**
-    ```python
-    import asyncio
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
-    from app.core.config import settings
-    from app.core.security import get_password_hash
-    from app.models.user_models import User, Role
+# Clave secreta para firmar los tokens JWT (¡genera una nueva!)
+SECRET_KEY=tu_clave_secreta_aqui_super_segura
 
-    # --- Configuración de Base de Datos ---
-    engine = create_engine(settings.DATABASE_URL)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Algoritmo de firma para JWT
+ALGORITHM=HS256
 
-    async def create_user():
-        db = SessionLocal()
-        try:
-            # --- Crear Roles si no existen ---
-            admin_role = db.query(Role).filter(Role.nombre == "ADMIN").first()
-            if not admin_role:
-                admin_role = Role(nombre="ADMIN")
-                db.add(admin_role)
+# Duración del token de acceso en minutos (ej. 30 días)
+ACCESS_TOKEN_EXPIRE_MINUTES=43200
 
-            ventas_role = db.query(Role).filter(Role.nombre == "VENTAS").first()
-            if not ventas_role:
-                ventas_role = Role(nombre="VENTAS")
-                db.add(ventas_role)
-            
-            db.commit()
+# URL del broker de Celery
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
 
-            # --- Crear Usuario Admin ---
-            admin_user = db.query(User).filter(User.email == "admin@innotrev.com").first()
-            if not admin_user:
-                admin_user = User(
-                    nombre="Admin User",
-                    email="admin@innotrev.com",
-                    password_hash=get_password_hash("admin123"),
-                    role_id=admin_role.id
-                )
-                db.add(admin_user)
+# Configuración de IA (Ollama local o remoto)
+# OLLAMA_BASE_URL=http://localhost:11434
+```
+> **Tip**: Genera una `SECRET_KEY` segura con:
+> `python -c "import secrets; print(secrets.token_hex(32))"`
 
-            # --- Crear Usuario Ventas ---
-            ventas_user = db.query(User).filter(User.email == "ventas@innotrev.com").first()
-            if not ventas_user:
-                ventas_user = User(
-                    nombre="Ventas User",
-                    email="ventas@innotrev.com",
-                    password_hash=get_password_hash("ventas123"),
-                    role_id=ventas_role.id
-                )
-                db.add(ventas_user)
+### 2. Instalación de Dependencias
 
-            db.commit()
-            print("Usuarios y roles creados exitosamente.")
+Se recomienda crear un entorno virtual primero. El archivo `requirements.txt` ha sido organizado por funcionalidad para mayor claridad.
 
-        finally:
-            db.close()
+```bash
+# Navega al directorio del backend
+cd innotrev-sistema/backend
 
-    if __name__ == "__main__":
-        asyncio.run(create_user())
+# Crea y activa un entorno virtual
+python -m venv .venv
+source .venv/bin/activate  # En Windows: .venv\Scripts\activate
 
-    ```
+# Instala las dependencias
+pip install -r requirements.txt
+```
 
-2.  **Ejecutar el script:**
-    ```bash
-    python create_user.py
-    ```
+### 3. Migraciones de la Base de Datos
 
-Esto creará un usuario "ADMIN" con el correo `admin@innotrev.com` y contraseña `admin123`, y un usuario "VENTAS" con el correo `ventas@innotrev.com` y contraseña `ventas123`. Ahora puedes usar estas credenciales para iniciar sesión y acceder a los endpoints protegidos.
+Con la base de datos accesible y el `.env` configurado, ejecuta las migraciones para crear o actualizar las tablas:
 
-## Estado actual del desarrollo (Para Frontend e IA)
+```bash
+alembic upgrade head
+```
 
-El backend expone una API REST documentada automáticamente en `/docs`.
+### 4. Creación de Datos Iniciales
 
-### Módulos listos para integración:
-1.  **Autenticación (JWT):** Login y protección de rutas por roles (ADMIN, VENTAS, TECNICO, CLIENTE).
-2.  **Equipos:** CRUD completo.
-3.  **Tickets de Soporte:**
-    -   Creación y asignación.
-    -   **WebSockets:** Conectar a `ws://localhost:8000/ws/tickets` para recibir eventos en tiempo real (`NUEVO_TICKET`, `TICKET_ASIGNADO`).
-4.  **Licencias:**
-    -   Subida de archivos (PDF/Certificados).
-    -   Control de vencimientos.
+El proyecto incluye un script para crear roles y usuarios de prueba.
 
-### Pendiente de implementación (IA):
--   El campo `prioridad` en los tickets actualmente se define por defecto. Se espera que el módulo de IA analice la `descripcion_cliente` para actualizar este campo automáticamente.
+```bash
+python create_user.py
+```
+
+### 5. Ejecución del Servidor
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+## Dockerfile Optimizado
+
+El `Dockerfile` del backend ha sido actualizado para mejorar la seguridad y la eficiencia:
+-   **Build Multi-etapa**: Se usa una etapa para instalar dependencias y otra para la imagen final, reduciendo su tamaño.
+-   **Usuario no-root**: La aplicación se ejecuta con un usuario de sistema (`app`) sin privilegios de administrador, una práctica de seguridad esencial.
+-   **Cache de dependencias**: Se aprovecha el cache de Docker para acelerar los builds cuando solo cambia el código fuente.

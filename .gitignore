@@ -1,45 +1,80 @@
-# IDEs y Editores
+# Este archivo .gitignore está optimizado para un proyecto Full Stack con
+# un backend Python (FastAPI/Celery) y un frontend Node.js (React/Vue/etc.).
+
+# --- 1. Secretos y Variables de Entorno (¡NUNCA SUBIR A GIT!) ---
+# Archivos que contienen credenciales, claves de API, etc.
+.env
+backend/.env
+frontend/.env
+*.env.local
+*.env.*.local
+
+# --- 2. Archivos Generados por el Usuario ---
+# Directorio donde los usuarios suben archivos (imágenes, documentos, etc.).
+# Es importante ignorarlo para no versionar datos de producción o prueba.
+/uploads/
+/backend/uploads/
+/frontend/uploads/
+
+# --- 3. Dependencias y Entornos Virtuales ---
+# Python
+/backend/.venv/
+.venv/
+venv/
+/build/
+/dist/
+/eggs/
+/*.egg-info/
+
+# Node.js
+/frontend/node_modules/
+/frontend/dist/
+/frontend/build/
+.npm/
+
+# --- 4. Cache y Archivos Compilados ---
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# --- 5. Logs ---
+*.log
+logs/
+*.log.*
+
+# --- 6. Archivos de Herramientas y Editores ---
+# Docker
+.docker/
+
+# IDEs y editores de texto
 .idea/
 .vscode/
 *.swp
 *~
+*.sublime-project
+*.sublime-workspace
 
-# Archivos del Sistema
+# --- 7. Archivos del Sistema Operativo ---
+# macOS
 .DS_Store
+**/.DS_Store
+# Windows
 Thumbs.db
 
-# --- Backend (Python/FastAPI) ---
-backend/.venv/
-backend/.env
-**/__pycache__/
-*.py[cod]
-*.pyd
+# --- 8. Archivos Específicos del Proyecto ---
+# Celery
+celerybeat-schedule
+celerybeat-schedule.db
+celerybeat-schedule.*
+backend/celerybeat-schedule
+
+# Bases de datos locales para pruebas
+*.sqlite3
+*.db
+
+# Reportes de pruebas y cobertura
 .pytest_cache/
-alembic/versions/*.pyc
-
-# --- Frontend (Node.js) ---
-frontend/node_modules/
-frontend/.env
-frontend/dist/
-frontend/build/
-*.log
-
-# Docker
-.docker/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-.pytest_cache/
-
-# Variables de entorno (¡MUY IMPORTANTE NO SUBIR ESTO!)
-.env
-
-# IDEs
-.vscode/
-.idea/
-
-# Archivos subidos por usuarios (Licencias, etc)
-uploads/
+.coverage
+htmlcov/

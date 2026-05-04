@@ -1,18 +1,29 @@
 from fastapi import APIRouter
-from app.api import equipment
-from app.api import notifications
-from app.api import ai
-from app.api import licenses
-from app.api import tickets
-from app.api import auth
+from app.api.endpoints import auth, users, equipment, ws, tickets, licenses, dashboard
+from app.api import ai  # <-- Tu ruta de IA
 
 api_router = APIRouter()
 
-# Registramos los routers con sus prefijos correspondientes
-api_router.include_router(equipment.router, prefix="/equipo", tags=["equipo"])
-# El router de notificaciones ya define /ws/notifications, así que no agregamos prefijo extra aquí
-api_router.include_router(notifications.router, tags=["notificaciones"])
-api_router.include_router(ai.router, prefix="/ia", tags=["ia"])
-api_router.include_router(licenses.router, prefix="/licencias", tags=["licencias"])
+# Módulo de Autenticación (Login, Registro)
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+
+# Módulo de Usuarios (Perfil, Admin)
+api_router.include_router(users.router, prefix="/usuarios", tags=["users"])
+
+# Módulo de Equipos (Inventario, Instalación HU-01)
+api_router.include_router(equipment.router, prefix="/equipo", tags=["equipment"])
+
+# CORRECCIÓN: Separamos los WebSockets en su propia ruta para evitar colisiones
+api_router.include_router(ws.router, prefix="/ws", tags=["websockets"])
+
+# Módulo de Tickets (HU-02)
 api_router.include_router(tickets.router, prefix="/tickets", tags=["tickets"])
-api_router.include_router(auth.router, tags=["auth"])
+
+# Módulo de Licencias
+api_router.include_router(licenses.router, prefix="/licencias", tags=["licenses"])
+
+# Módulo de Dashboard
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+
+# Módulo de Inteligencia Artificial (Tuyo)
+api_router.include_router(ai.router, prefix="/ai", tags=["ia"])

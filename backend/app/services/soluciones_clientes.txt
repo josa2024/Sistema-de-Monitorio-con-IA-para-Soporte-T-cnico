@@ -1,0 +1,76 @@
+GUÍA OFICIAL DE SOPORTE - INNOTREV (TOP CASES)
+==============================================
+
+TEMA: CARDSTUDIO 2.0 DESCARGA E INSTALACIÓN
+Problema: ¿Cómo descargar e instalar el software de credenciales?
+Solución:
+1. Entra a la web oficial de Zebra o usa el link que te enviamos por correo.
+2. Descarga el archivo "CardStudio 2.0 Demo/Web".
+3. Ejecuta el instalador como administrador.
+4. Sigue los pasos (Siguiente > Siguiente > Instalar).
+IMPORTANTE: Se instalarán dos iconos: "Design Studio" (Diseño) y "Print Studio" (Impresión).
+VIDEO_TUTORIAL: Mira la instalación paso a paso: [https://www.youtube.com/watch?v=hpxbqfPOS8w]
+
+TEMA: ACTIVACIÓN DE CARDSTUDIO 2.0 (LICENCIA)
+Problema: Tengo la licencia pero sigue en modo DEMO.
+Solución:
+1. Abre "Design Studio".
+2. Ve a la esquina superior derecha y haz clic en "License Manager" (o el icono de llave).
+3. Ingresa tu "License Key" (Clave de licencia) y tu correo electrónico.
+4. Haz clic en "Activate". Requiere conexión a internet.
+VIDEO_TUTORIAL: Cómo activar tu licencia: [https://www.youtube.com/watch?v=bxLgEAfysRQ]
+
+TEMA: CARGA DE TARJETAS Y RIBBON PARA ZC100 Y ZC300
+Problema: ¿Cómo poner la cinta (ribbon) y las tarjetas en mi Zebra ZC?
+Solución:
+1. Abre la compuerta superior y la puerta lateral.
+2. RIBBON: El cartucho solo entra en una posición. Insértalo hasta oír un "clic" y cierra la puerta.
+3. TARJETAS: Abre las compuertas de entrada, ajusta las guías al ancho de la tarjeta e inserta el bloque de tarjetas PVC.
+4. Cierra todo y espera a que la luz se ponga verde.
+VIDEO_TUTORIAL: Carga correcta de consumibles: [https://www.youtube.com/watch?v=wcsPaVjsVCg]
+
+TEMA: CÓMO DISEÑAR TARJETAS DE IDENTIFICACIÓN
+Problema: Pasos básicos para crear una credencial.
+Solución:
+1. Abre CardStudio (Design Studio).
+2. Crea un nuevo proyecto y selecciona el tamaño (CR80) y si es una o dos caras.
+3. Usa la herramienta de "Imagen" para subir logos y fotos.
+4. Usa la herramienta de "Texto" para nombres.
+5. Guarda el diseño y mándalo a "Print Studio" para imprimir.
+VIDEO_TUTORIAL: Tu primer diseño en CardStudio: [https://www.youtube.com/watch?v=_umxjqS5UNA]
+
+TEMA: DESCARGA E INSTALACIÓN BÁSICA DE DRIVER ZEBRA
+Problema: La computadora no reconoce la impresora.
+Solución:
+1. Entra a Zebra.com > Soporte y Descargas > Impresoras.
+2. Busca tu modelo exacto (ej. ZD220, ZT230).
+3. Descarga "Zebra Setup Utilities for Windows".
+4. Instala el driver ANTES de conectar el cable USB.
+5. Conecta el USB cuando el instalador te lo pida.
+VIDEO_TUTORIAL: Instalación correcta de drivers: [https://www.youtube.com/watch?v=CCXZ0EPK3kQ]
+
+TEMA: DESCARGA E INSTALACIÓN DE ZEBRA DESIGNER 3 ESSENTIALS
+Problema: Software gratuito para etiquetas.
+Solución:
+1. Busca "ZebraDesigner 3 Essentials" en la web de Zebra.
+2. Descarga la versión gratuita (Essentials), no la Pro (demo).
+3. Instala el programa. Este software te permitirá diseñar etiquetas de código de barras fácilmente.
+VIDEO_TUTORIAL: Descarga e instalación: [https://www.youtube.com/watch?v=kWMA2CyvzCM]
+
+TEMA: ZEBRA DESIGNER ESSENTIALS 3: DISEÑO DE ETIQUETAS SENCILLO
+Problema: ¿Cómo hago mi primera etiqueta?
+Solución:
+1. Abre ZebraDesigner y selecciona tu impresora.
+2. Configura el tamaño de la etiqueta (Ancho y Alto) medido con regla.
+3. Arrastra un objeto de "Código de Barras" al lienzo.
+4. Escribe los datos y haz clic en imprimir.
+VIDEO_TUTORIAL: Diseñando tu primera etiqueta: [https://www.youtube.com/watch?v=QU12GIMQITo]
+
+TEMA: CALIBRAR IMPRESORA DE ESCRITORIO ZEBRA (LUZ ROJA)
+Problema: Luz roja parpadeando o salta etiquetas en blanco.
+Solución (Calibración Estándar):
+1. Asegúrate de que la impresora esté encendida y cerrada (luz verde o roja).
+2. Mantén presionado el botón de PAUSA/FEED por 2 parpadeos de la luz.
+3. Suelta el botón inmediatamente.
+4. La impresora sacará 2 o 3 etiquetas para medir el largo y se detendrá en la posición correcta.
+VIDEO_TUTORIAL: Calibración en 1 minuto: [https://www.youtube.com/watch?v=GooGi54YlxI]

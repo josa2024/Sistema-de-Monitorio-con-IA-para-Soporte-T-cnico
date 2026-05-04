@@ -13,6 +13,9 @@ RUN npm install
 # Bundle app source
 COPY . .
 
+# ---> ESTA ES LA LÍNEA MÁGICA QUE SOLUCIONA EL ERROR <---
+ENV HOST=0.0.0.0
+
 # Make port 3000 available to the world outside this container
 EXPOSE 3000
 

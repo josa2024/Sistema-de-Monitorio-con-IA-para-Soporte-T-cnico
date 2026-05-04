@@ -1,51 +1,47 @@
-from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime
+from pydantic import BaseModel
 
 class EquipmentBase(BaseModel):
-    """Esquema base con campos comunes."""
     numero_serie: str
-    modelo: str
+    modelo: Optional[str] = None
     cliente_id: int
 
 class EquipmentCreate(EquipmentBase):
-    """Esquema para la creación de un equipo. No se necesita más."""
-    pass
-
-class EquipmentReception(BaseModel):
-    """Esquema para procesar la recepción física del equipo."""
-    estado_empaque: Optional[str] = None
-    confirmacion_encendido: bool = False
-    fecha_recepcion: datetime
+    status: Optional[str] = "EN_TRANSITO"
 
 class EquipmentUpdate(BaseModel):
-    """Esquema para actualizar un equipo. Todos los campos son opcionales."""
-    status: Optional[str] = None
+    numero_serie: Optional[str] = None
     modelo: Optional[str] = None
     cliente_id: Optional[int] = None
+    status: Optional[str] = None
 
 class EquipmentResponse(EquipmentBase):
-    """
-    Esquema para la respuesta de la API.
-    Incluye campos adicionales que genera la base de datos.
-    """
     id: int
     status: str
-    fecha_recepcion: Optional[datetime] = None
-    estado_empaque: Optional[str] = None
-    confirmacion_encendido: bool = False
-    fecha_vencimiento_garantia: Optional[datetime] = None
+    fecha_salida_sucursal: Optional[datetime] = None
+    fecha_instalacion: Optional[datetime] = None
+    fecha_inicio_garantia: Optional[datetime] = None
+    url_evidencia: Optional[str] = None
 
     class Config:
-        """Habilita el modo 'desde atributos' para mapear desde el modelo SQLAlchemy."""
         from_attributes = True
 
+# Esquema para la HU-01: Recepción del equipo por parte del cliente
+class EquipmentReception(BaseModel):
+    fecha_recepcion: datetime
+    estado_empaque: str
+    encendio_correctamente: bool
+    observaciones: Optional[str] = None
+    evidencia_url: Optional[str] = None
+
+# Esquema para mostrar el historial de logs
 class LogResponse(BaseModel):
-    """Esquema para la respuesta de logs de auditoría."""
     id: int
     equipo_id: int
+    usuario_id: Optional[int] = None
     evento: str
-    detalles: Dict[str, Any]
+    detalles: Optional[Dict[str, Any]] = None
     fecha: datetime
 
     class Config:
